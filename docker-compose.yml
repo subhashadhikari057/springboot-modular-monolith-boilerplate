@@ -1,0 +1,86 @@
+version: "3.9"
+
+name: backend-infra
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: backend-postgres
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5433:5432"
+    volumes:
+      - backend_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - backend-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: backend-redis
+    ports:
+      - "6380:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - backend_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - backend-net
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: backend-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: app
+      RABBITMQ_DEFAULT_PASS: app
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - backend_rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks:
+      - backend-net
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: backend-mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - backend-net
+
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: backend-redisinsight
+    ports:
+      - "8001:5540"
+    depends_on:
+      - redis
+    networks:
+      - backend-net
+
+volumes:
+  backend_pg_data:
+  backend_redis_data:
+  backend_rabbitmq_data:
+
+networks:
+  backend-net:
+    driver: bridge
