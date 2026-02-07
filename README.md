@@ -1,13 +1,14 @@
 # Backend Starter (Spring Boot)
 
-<p align="left">
-  <img src="assets/spring.svg" width="48" alt="Spring Boot" style="margin-right: 5px;" />
-  <img src="assets/postgres.svg" width="48" alt="PostgreSQL" style="margin-right: 5px;" />
-  <img src="assets/redis.svg" width="48" alt="Redis" style="margin-right: 5px;" />
-  <img src="assets/rabbit.svg" width="48" alt="RabbitMQ" style="margin-right: 5px;" />
-  <img src="assets/mailpit.svg" width="48" alt="Mailpit" style="margin-right: 5px;" />
-  <img src="assets/docker.svg" width="48" alt="Docker" />
+<p align="center">
+  <img src="assets/spring.svg" width="60" alt="Spring Boot" style="margin-right: 5px;" />
+  <img src="assets/postgres.svg" width="60" alt="PostgreSQL" style="margin-right: 5px;" />
+  <img src="assets/redis.svg" width="60" alt="Redis" style="margin-right: 5px;" />
+  <img src="assets/rabbit.svg" width="60" alt="RabbitMQ" style="margin-right: 5px;" />
+  <img src="assets/mailpit.svg" width="60" alt="Mailpit" style="margin-right: 5px;" />
+  <img src="assets/docker.svg" width="60" alt="Docker" />
 </p>
+
 
 A production-leaning Spring Boot 3.x backend with Postgres, Redis, RabbitMQ, and Mailpit wired via Docker Compose.
 
