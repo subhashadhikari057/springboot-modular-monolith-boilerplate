@@ -1,4 +1,4 @@
-package com.starterpack.backend;
+package com.starterpack.backend.config;
 
 import java.sql.Connection;
 import java.sql.Statement;
