@@ -25,3 +25,17 @@ spring:
     properties:
       mail.smtp.auth: false
       mail.smtp.starttls.enable: false
+
+springdoc:
+  api-docs:
+    path: /openapi.json
+  swagger-ui:
+    enabled: false
+  paths-to-exclude:
+    - /docs
+    - /docs/**
+
+scalar:
+  enabled: true
+  path: /docs
+  url: /openapi.json
