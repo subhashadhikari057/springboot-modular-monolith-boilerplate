@@ -28,3 +28,4 @@ Invariants
 Migrations
 - `V1__core_schema.sql`
 - `V2__seed_rbac_and_superadmin.sql`
+- `V3__move_pgcrypto_to_extensions_schema.sql`
