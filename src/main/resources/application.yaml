@@ -1,9 +1,6 @@
 spring:
   application:
     name: backend
-
-server:
-  port: ${PORT:8080}
   datasource:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
@@ -29,6 +26,9 @@ server:
       mail.smtp.auth: false
       mail.smtp.starttls.enable: false
 
+server:
+  port: ${PORT:8080}
+
 springdoc:
   api-docs:
     path: /openapi.json
@@ -42,3 +42,21 @@ scalar:
   enabled: true
   path: /docs
   url: /openapi.json
+
+auth:
+  cookie:
+    name: sid
+    secure: false
+    same-site: Lax
+    path: /
+  refresh-cookie:
+    name: rid
+    secure: false
+    same-site: Lax
+    path: /
+  session:
+    ttl: PT15M
+  refresh:
+    ttl: PT168H
+  verification:
+    ttl: PT15M

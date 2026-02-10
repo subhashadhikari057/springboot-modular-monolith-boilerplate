@@ -1,0 +1,102 @@
+package com.starterpack.backend.modules.users.api;
+
+import java.net.URI;
+import java.util.List;
+import java.util.UUID;
+
+import com.starterpack.backend.modules.users.api.dto.CreateUserRequest;
+import com.starterpack.backend.modules.users.api.dto.UpdateUserRoleRequest;
+import com.starterpack.backend.modules.users.api.dto.UserResponse;
+import com.starterpack.backend.modules.users.application.UserService;
+import com.starterpack.backend.modules.users.domain.User;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/users")
+@Tag(name = "Users", description = "User management")
+@Validated
+public class UserController {
+    private final UserService userService;
+
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
+
+    @Operation(summary = "Create user", description = "Creates a new user and assigns a role.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "User created",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = UserResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid input", content = @Content),
+            @ApiResponse(responseCode = "409", description = "Email already exists", content = @Content)
+    })
+    @PostMapping
+    @PreAuthorize("hasAuthority('user:create')")
+    public ResponseEntity<UserResponse> createUser(@Valid @RequestBody CreateUserRequest request) {
+        User user = userService.createUser(request);
+        URI location = URI.create("/api/users/" + user.getId());
+        return ResponseEntity.created(location).body(UserResponse.from(user));
+    }
+
+    @Operation(summary = "Get user", description = "Returns a single user by id.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "User found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = UserResponse.class))),
+            @ApiResponse(responseCode = "404", description = "User not found", content = @Content)
+    })
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('user:read')")
+    public UserResponse getUser(
+            @Parameter(description = "User id", example = "6cfb19a7-71a3-46a8-b1d8-3de77bcd9b61")
+            @PathVariable UUID id
+    ) {
+        return UserResponse.from(userService.getUser(id));
+    }
+
+    @Operation(summary = "List users", description = "Returns all users.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Users list",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = UserResponse.class)))
+    })
+    @GetMapping
+    @PreAuthorize("hasAuthority('user:read')")
+    public List<UserResponse> listUsers() {
+        return userService.listUsers().stream().map(UserResponse::from).toList();
+    }
+
+    @Operation(summary = "Update user role", description = "Assigns a new role to a user.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Role updated",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = UserResponse.class))),
+            @ApiResponse(responseCode = "404", description = "User or role not found", content = @Content)
+    })
+    @PutMapping("/{id}/role")
+    @PreAuthorize("hasAuthority('user:update-role')")
+    public UserResponse updateUserRole(
+            @Parameter(description = "User id", example = "6cfb19a7-71a3-46a8-b1d8-3de77bcd9b61")
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateUserRoleRequest request
+    ) {
+        return UserResponse.from(userService.updateUserRole(id, request.roleId()));
+    }
+}
