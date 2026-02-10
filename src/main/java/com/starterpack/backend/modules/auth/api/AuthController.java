@@ -44,7 +44,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/auth")
-@Tag(name = "Auth", description = "Cookie-based authentication")
+@Tag(name = "Auth", description = "Authentication, sessions, verification, and password recovery")
 @Validated
 public class AuthController {
     private final AuthService authService;

@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/permissions")
-@Tag(name = "Permissions", description = "Permission catalog")
+@Tag(name = "Permissions", description = "Permission catalog and RBAC capabilities")
 @Validated
 public class PermissionController {
     private final PermissionService permissionService;

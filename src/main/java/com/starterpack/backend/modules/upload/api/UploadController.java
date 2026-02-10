@@ -39,7 +39,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/uploads")
-@Tag(name = "Uploads", description = "Media upload and management")
+@Tag(name = "Uploads", description = "Media upload, listing, and file lifecycle management")
 @Validated
 public class UploadController {
     private final UploadService uploadService;

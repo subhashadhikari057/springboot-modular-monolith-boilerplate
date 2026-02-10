@@ -35,7 +35,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/users")
-@Tag(name = "Users", description = "User management")
+@Tag(name = "Users", description = "User management, listing, and role assignment")
 @Validated
 public class UserController {
     private final UserService userService;
