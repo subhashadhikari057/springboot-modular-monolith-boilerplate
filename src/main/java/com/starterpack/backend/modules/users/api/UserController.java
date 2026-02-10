@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
@@ -134,5 +135,20 @@ public class UserController {
             @Valid @RequestBody UpdateUserRoleRequest request
     ) {
         return UserResponse.from(userService.updateUserRole(id, request.roleId()));
+    }
+
+    @Operation(summary = "Delete user", description = "Deletes a user and related auth records.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "User deleted", content = @Content),
+            @ApiResponse(responseCode = "404", description = "User not found", content = @Content)
+    })
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('user:delete')")
+    public ResponseEntity<Void> deleteUser(
+            @Parameter(description = "User id", example = "6cfb19a7-71a3-46a8-b1d8-3de77bcd9b61")
+            @PathVariable UUID id
+    ) {
+        userService.deleteUser(id);
+        return ResponseEntity.noContent().build();
     }
 }

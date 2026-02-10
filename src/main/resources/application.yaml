@@ -25,6 +25,10 @@ spring:
     properties:
       mail.smtp.auth: false
       mail.smtp.starttls.enable: false
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 200MB
 
 server:
   port: ${PORT:8080}
@@ -60,3 +64,10 @@ auth:
     ttl: PT168H
   verification:
     ttl: PT15M
+
+upload:
+  max-file-size-bytes: 52428800
+  allowed-content-types: []
+  local:
+    base-dir: uploads
+    public-base-url: /files

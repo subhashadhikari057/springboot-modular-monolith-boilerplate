@@ -14,6 +14,7 @@ import com.starterpack.backend.modules.users.domain.User;
 import com.starterpack.backend.modules.users.infrastructure.AccountRepository;
 import com.starterpack.backend.modules.users.infrastructure.RoleRepository;
 import com.starterpack.backend.modules.users.infrastructure.UserRepository;
+import com.starterpack.backend.modules.users.infrastructure.VerificationRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -32,17 +33,20 @@ public class UserService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final AccountRepository accountRepository;
+    private final VerificationRepository verificationRepository;
     private final PasswordEncoder passwordEncoder;
 
     public UserService(
             UserRepository userRepository,
             RoleRepository roleRepository,
             AccountRepository accountRepository,
+            VerificationRepository verificationRepository,
             PasswordEncoder passwordEncoder
     ) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.accountRepository = accountRepository;
+        this.verificationRepository = verificationRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -98,6 +102,12 @@ public class UserService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found"));
         user.setRole(role);
         return user;
+    }
+
+    public void deleteUser(UUID userId) {
+        User user = getUser(userId);
+        verificationRepository.deleteByIdentifier(user.getId().toString());
+        userRepository.delete(user);
     }
 
     private Role resolveRole(Integer roleId) {

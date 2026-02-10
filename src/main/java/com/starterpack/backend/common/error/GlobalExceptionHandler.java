@@ -12,8 +12,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
@@ -89,6 +91,22 @@ public class GlobalExceptionHandler {
                         HttpStatus.BAD_REQUEST.getReasonPhrase(),
                         "MALFORMED_REQUEST",
                         "Malformed request body.",
+                        request.getRequestURI(),
+                        List.of()
+                ));
+    }
+
+    @ExceptionHandler({MissingServletRequestPartException.class, MissingServletRequestParameterException.class})
+    public ResponseEntity<ApiErrorResponse> handleMissingMultipartOrParam(
+            Exception ex,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity.badRequest()
+                .body(ApiErrorResponse.of(
+                        HttpStatus.BAD_REQUEST.value(),
+                        HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                        "MISSING_REQUIRED_PART",
+                        "Required multipart file/parameter is missing.",
                         request.getRequestURI(),
                         List.of()
                 ));
