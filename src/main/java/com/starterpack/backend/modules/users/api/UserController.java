@@ -1,9 +1,9 @@
 package com.starterpack.backend.modules.users.api;
 
 import java.net.URI;
-import java.util.List;
 import java.util.UUID;
 
+import com.starterpack.backend.common.web.PagedResponse;
 import com.starterpack.backend.modules.users.api.dto.CreateUserRequest;
 import com.starterpack.backend.modules.users.api.dto.UpdateUserRoleRequest;
 import com.starterpack.backend.modules.users.api.dto.UserResponse;
@@ -17,6 +17,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
@@ -26,7 +28,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/users")
@@ -79,8 +83,40 @@ public class UserController {
     })
     @GetMapping
     @PreAuthorize("hasAuthority('user:read')")
-    public List<UserResponse> listUsers() {
-        return userService.listUsers().stream().map(UserResponse::from).toList();
+    public PagedResponse<UserResponse> listUsers(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir
+    ) {
+        if (page < 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "page must be >= 1");
+        }
+        if (size < 1 || size > 100) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "size must be between 1 and 100");
+        }
+
+        String resolvedSortBy = resolveSortBy(sortBy);
+        Sort.Direction direction = parseDirection(sortDir);
+        return userService.listUsers(page - 1, size, resolvedSortBy, direction);
+    }
+
+    private String resolveSortBy(String sortBy) {
+        return switch (sortBy) {
+            case "id", "name", "email", "createdAt", "updatedAt" -> sortBy;
+            default -> throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Unsupported sortBy. Allowed: id,name,email,createdAt,updatedAt"
+            );
+        };
+    }
+
+    private Sort.Direction parseDirection(String sortDir) {
+        try {
+            return Sort.Direction.fromString(sortDir);
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sortDir must be asc or desc");
+        }
     }
 
     @Operation(summary = "Update user role", description = "Assigns a new role to a user.")

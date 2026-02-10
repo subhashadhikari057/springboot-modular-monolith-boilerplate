@@ -4,13 +4,20 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
+import com.starterpack.backend.common.web.PageMeta;
+import com.starterpack.backend.common.web.PagedResponse;
 import com.starterpack.backend.modules.users.api.dto.CreateUserRequest;
+import com.starterpack.backend.modules.users.api.dto.UserResponse;
 import com.starterpack.backend.modules.users.domain.Account;
 import com.starterpack.backend.modules.users.domain.Role;
 import com.starterpack.backend.modules.users.domain.User;
 import com.starterpack.backend.modules.users.infrastructure.AccountRepository;
 import com.starterpack.backend.modules.users.infrastructure.RoleRepository;
 import com.starterpack.backend.modules.users.infrastructure.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -74,8 +81,15 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public List<User> listUsers() {
-        return userRepository.findAll();
+    public PagedResponse<UserResponse> listUsers(int page, int size, String sortBy, Sort.Direction sortDirection) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, sortBy));
+        Page<User> users = userRepository.findAll(pageable);
+
+        List<UserResponse> items = users.getContent().stream()
+                .map(UserResponse::from)
+                .toList();
+
+        return new PagedResponse<>(items, PageMeta.from(users));
     }
 
     public User updateUserRole(UUID userId, Integer roleId) {
