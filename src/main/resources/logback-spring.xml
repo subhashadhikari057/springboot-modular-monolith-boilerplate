@@ -13,6 +13,10 @@
         <appender-ref ref="API_CONSOLE"/>
     </logger>
 
+    <logger name="CACHE" level="DEBUG" additivity="false">
+        <appender-ref ref="API_CONSOLE"/>
+    </logger>
+
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
     </root>

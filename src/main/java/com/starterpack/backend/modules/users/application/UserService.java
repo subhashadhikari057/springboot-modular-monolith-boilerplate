@@ -13,8 +13,11 @@ import com.starterpack.backend.modules.users.domain.Role;
 import com.starterpack.backend.modules.users.domain.User;
 import com.starterpack.backend.modules.users.infrastructure.AccountRepository;
 import com.starterpack.backend.modules.users.infrastructure.RoleRepository;
+import com.starterpack.backend.modules.users.infrastructure.UserCache;
 import com.starterpack.backend.modules.users.infrastructure.UserRepository;
 import com.starterpack.backend.modules.users.infrastructure.VerificationRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -29,25 +32,32 @@ import org.springframework.web.server.ResponseStatusException;
 @Transactional
 public class UserService {
     private static final String LOCAL_PROVIDER = "local";
+    private static final java.time.Duration USER_CACHE_TTL = java.time.Duration.ofMinutes(5);
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final AccountRepository accountRepository;
     private final VerificationRepository verificationRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UserCache userCache;
+    private final ObjectMapper objectMapper;
 
     public UserService(
             UserRepository userRepository,
             RoleRepository roleRepository,
             AccountRepository accountRepository,
             VerificationRepository verificationRepository,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            UserCache userCache,
+            ObjectMapper objectMapper
     ) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.accountRepository = accountRepository;
         this.verificationRepository = verificationRepository;
         this.passwordEncoder = passwordEncoder;
+        this.userCache = userCache;
+        this.objectMapper = objectMapper;
     }
 
     public User createUser(CreateUserRequest request) {
@@ -75,6 +85,7 @@ public class UserService {
         account.setPasswordHash(passwordEncoder.encode(request.password()));
         accountRepository.save(account);
 
+        userCache.invalidateLists();
         return user;
     }
 
@@ -86,6 +97,19 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public PagedResponse<UserResponse> listUsers(int page, int size, String sortBy, Sort.Direction sortDirection) {
+        String listCacheKey = listCacheKey(page, size, sortBy, sortDirection);
+        String cached = userCache.getList(listCacheKey);
+        if (cached != null) {
+            userCache.logHit(listCacheKey);
+            PagedResponse<UserResponse> response = readPagedUserResponse(cached);
+            if (response != null) {
+                return response;
+            }
+            userCache.invalidateLists();
+        }
+
+        userCache.logMiss(listCacheKey);
+
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, sortBy));
         Page<User> users = userRepository.findAll(pageable);
 
@@ -93,7 +117,9 @@ public class UserService {
                 .map(UserResponse::from)
                 .toList();
 
-        return new PagedResponse<>(items, PageMeta.from(users));
+        PagedResponse<UserResponse> response = new PagedResponse<>(items, PageMeta.from(users));
+        cacheUserList(listCacheKey, response);
+        return response;
     }
 
     public User updateUserRole(UUID userId, Integer roleId) {
@@ -101,12 +127,14 @@ public class UserService {
         Role role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found"));
         user.setRole(role);
+        userCache.invalidateLists();
         return user;
     }
 
     public void deleteUser(UUID userId) {
         User user = getUser(userId);
         verificationRepository.deleteByIdentifier(user.getId().toString());
+        userCache.invalidateLists();
         userRepository.delete(user);
     }
 
@@ -121,5 +149,29 @@ public class UserService {
                         HttpStatus.BAD_REQUEST,
                         "Default role USER not found"
                 ));
+    }
+
+    private void cacheUserList(String listCacheKey, PagedResponse<UserResponse> response) {
+        try {
+            String json = objectMapper.writeValueAsString(response);
+            userCache.putList(listCacheKey, json, USER_CACHE_TTL);
+        } catch (JsonProcessingException ignored) {
+            // Cache failures should not affect request flow.
+        }
+    }
+
+    private PagedResponse<UserResponse> readPagedUserResponse(String cached) {
+        try {
+            return objectMapper.readValue(
+                    cached,
+                    objectMapper.getTypeFactory().constructParametricType(PagedResponse.class, UserResponse.class)
+            );
+        } catch (JsonProcessingException ignored) {
+            return null;
+        }
+    }
+
+    private String listCacheKey(int page, int size, String sortBy, Sort.Direction sortDirection) {
+        return "users:list:" + page + ":" + size + ":" + sortBy + ":" + sortDirection.name().toLowerCase();
     }
 }
