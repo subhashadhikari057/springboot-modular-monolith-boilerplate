@@ -16,6 +16,10 @@ Authentication is resolved server-side with Redis-first and DB-fallback session 
 - On cache miss/unavailable cache, session is validated from PostgreSQL and cache is repopulated.
 - Authorization uses role/permission authorities derived from the authenticated context.
 
+Verification and reset token exposure policy:
+- Development/local testing may expose plain verification/reset tokens in API responses.
+- Production profile must disable token exposure in API responses (`auth.verification.expose-token-in-response=false`) and rely on email-delivered links/tokens.
+
 ## Alternatives Considered
 1. Stateless JWT-only access tokens
 2. Header-based opaque tokens without cookies

@@ -1,0 +1,3 @@
+auth:
+  verification:
+    expose-token-in-response: false

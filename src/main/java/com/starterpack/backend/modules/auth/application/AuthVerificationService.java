@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import com.starterpack.backend.common.error.AppException;
 import com.starterpack.backend.config.AuthProperties;
+import com.starterpack.backend.modules.auth.application.port.AuthEmailSenderPort;
 import com.starterpack.backend.modules.auth.api.dto.ConfirmVerificationRequest;
 import com.starterpack.backend.modules.auth.api.dto.ForgotPasswordRequest;
 import com.starterpack.backend.modules.auth.api.dto.RequestVerificationRequest;
@@ -26,6 +27,7 @@ import com.starterpack.backend.modules.users.infrastructure.UserRepository;
 import com.starterpack.backend.modules.users.infrastructure.VerificationRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
 @Transactional
@@ -37,6 +39,7 @@ public class AuthVerificationService {
     private final AccountRepository accountRepository;
     private final AuthProperties authProperties;
     private final AuthTokenService authTokenService;
+    private final AuthEmailSenderPort authEmailSenderPort;
     private final Map<VerificationPurpose, VerificationPurposeHandler> purposeHandlers;
     private final Map<VerificationChannel, VerificationChannelTargetResolver> channelResolvers;
 
@@ -46,6 +49,7 @@ public class AuthVerificationService {
             AccountRepository accountRepository,
             AuthProperties authProperties,
             AuthTokenService authTokenService,
+            AuthEmailSenderPort authEmailSenderPort,
             List<VerificationPurposeHandler> purposeHandlers,
             List<VerificationChannelTargetResolver> channelResolvers
     ) {
@@ -54,6 +58,7 @@ public class AuthVerificationService {
         this.accountRepository = accountRepository;
         this.authProperties = authProperties;
         this.authTokenService = authTokenService;
+        this.authEmailSenderPort = authEmailSenderPort;
         this.purposeHandlers = indexPurposeHandlers(purposeHandlers);
         this.channelResolvers = indexChannelResolvers(channelResolvers);
     }
@@ -72,6 +77,16 @@ public class AuthVerificationService {
         verification.setTokenHash(authTokenService.hashToken(plainToken));
         verification.setExpiresAt(OffsetDateTime.now().plus(authProperties.getVerification().getTtl()));
         verificationRepository.save(verification);
+        if (request.channel() == VerificationChannel.EMAIL) {
+            authEmailSenderPort.sendVerificationEmail(new AuthEmailSenderPort.VerificationEmailCommand(
+                    target,
+                    user.getName(),
+                    request.purpose(),
+                    verification.getIdentifier(),
+                    plainToken,
+                    buildVerificationLink(verification.getIdentifier(), plainToken, request.purpose())
+            ));
+        }
         return new IssuedVerificationData(verification, plainToken);
     }
 
@@ -112,6 +127,13 @@ public class AuthVerificationService {
         verification.setTokenHash(authTokenService.hashToken(plainToken));
         verification.setExpiresAt(OffsetDateTime.now().plus(authProperties.getVerification().getTtl()));
         verificationRepository.save(verification);
+        authEmailSenderPort.sendPasswordResetEmail(new AuthEmailSenderPort.PasswordResetEmailCommand(
+                email,
+                user.getName(),
+                verification.getIdentifier(),
+                plainToken,
+                buildPasswordResetLink(verification.getIdentifier(), plainToken)
+        ));
         return Optional.of(new IssuedVerificationData(verification, plainToken));
     }
 
@@ -186,6 +208,23 @@ public class AuthVerificationService {
 
     private String normalizeEmail(String email) {
         return email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String buildVerificationLink(String identifier, String token, VerificationPurpose purpose) {
+        return UriComponentsBuilder.fromUriString(authProperties.getMail().getVerificationLinkBaseUrl())
+                .queryParam("identifier", identifier)
+                .queryParam("token", token)
+                .queryParam("purpose", purpose.name())
+                .build()
+                .toUriString();
+    }
+
+    private String buildPasswordResetLink(String identifier, String token) {
+        return UriComponentsBuilder.fromUriString(authProperties.getMail().getPasswordResetLinkBaseUrl())
+                .queryParam("identifier", identifier)
+                .queryParam("token", token)
+                .build()
+                .toUriString();
     }
 
     public record IssuedVerificationData(Verification verification, String token) {
