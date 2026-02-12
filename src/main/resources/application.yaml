@@ -65,9 +65,14 @@ auth:
     ttl: PT168H
   verification:
     ttl: PT15M
+    expose-token-in-response: ${AUTH_VERIFICATION_EXPOSE_TOKEN_IN_RESPONSE:true}
   cache:
     prefix: auth
     user-session-set-prefix: auth:user-sessions
+  mail:
+    from: ${AUTH_MAIL_FROM:no-reply@starterpack.local}
+    verification-link-base-url: ${AUTH_MAIL_VERIFICATION_LINK_BASE_URL:http://localhost:3000/verify}
+    password-reset-link-base-url: ${AUTH_MAIL_PASSWORD_RESET_LINK_BASE_URL:http://localhost:3000/reset-password}
 
 cache:
   users:

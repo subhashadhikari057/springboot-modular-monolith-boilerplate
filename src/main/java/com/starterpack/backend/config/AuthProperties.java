@@ -12,6 +12,7 @@ public class AuthProperties {
     private final Refresh refresh = new Refresh();
     private final Verification verification = new Verification();
     private final Cache cache = new Cache();
+    private final Mail mail = new Mail();
 
     public AuthProperties() {
         refreshCookie.setName("rid");
@@ -39,6 +40,10 @@ public class AuthProperties {
 
     public Cache getCache() {
         return cache;
+    }
+
+    public Mail getMail() {
+        return mail;
     }
 
     public static class Cookie {
@@ -103,6 +108,7 @@ public class AuthProperties {
 
     public static class Verification {
         private Duration ttl = Duration.ofMinutes(15);
+        private boolean exposeTokenInResponse = true;
 
         public Duration getTtl() {
             return ttl;
@@ -110,6 +116,14 @@ public class AuthProperties {
 
         public void setTtl(Duration ttl) {
             this.ttl = ttl;
+        }
+
+        public boolean isExposeTokenInResponse() {
+            return exposeTokenInResponse;
+        }
+
+        public void setExposeTokenInResponse(boolean exposeTokenInResponse) {
+            this.exposeTokenInResponse = exposeTokenInResponse;
         }
     }
 
@@ -143,6 +157,36 @@ public class AuthProperties {
 
         public void setUserSessionSetPrefix(String userSessionSetPrefix) {
             this.userSessionSetPrefix = userSessionSetPrefix;
+        }
+    }
+
+    public static class Mail {
+        private String from = "no-reply@starterpack.local";
+        private String verificationLinkBaseUrl = "http://localhost:3000/verify";
+        private String passwordResetLinkBaseUrl = "http://localhost:3000/reset-password";
+
+        public String getFrom() {
+            return from;
+        }
+
+        public void setFrom(String from) {
+            this.from = from;
+        }
+
+        public String getVerificationLinkBaseUrl() {
+            return verificationLinkBaseUrl;
+        }
+
+        public void setVerificationLinkBaseUrl(String verificationLinkBaseUrl) {
+            this.verificationLinkBaseUrl = verificationLinkBaseUrl;
+        }
+
+        public String getPasswordResetLinkBaseUrl() {
+            return passwordResetLinkBaseUrl;
+        }
+
+        public void setPasswordResetLinkBaseUrl(String passwordResetLinkBaseUrl) {
+            this.passwordResetLinkBaseUrl = passwordResetLinkBaseUrl;
         }
     }
 }

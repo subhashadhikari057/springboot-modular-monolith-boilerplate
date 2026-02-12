@@ -33,4 +33,8 @@ public class AppException extends RuntimeException {
     public static AppException conflict(String message) {
         return new AppException(409, "CONFLICT", message);
     }
+
+    public static AppException serviceUnavailable(String message) {
+        return new AppException(503, "SERVICE_UNAVAILABLE", message);
+    }
 }

@@ -182,7 +182,8 @@ public class AuthController {
     ) {
         User user = currentUser(authentication);
         AuthService.IssuedVerification issued = authService.requestVerification(user, request);
-        return VerificationIssuedResponse.from(issued.verification(), issued.token());
+        String token = authProperties.getVerification().isExposeTokenInResponse() ? issued.token() : null;
+        return VerificationIssuedResponse.from(issued.verification(), token);
     }
 
     @Operation(summary = "Confirm verification", description = "Confirms email/phone/password-reset verification token.")
@@ -210,7 +211,7 @@ public class AuthController {
                 .map(issued -> new ForgotPasswordResponse(
                         "If the account exists, reset instructions have been issued",
                         issued.verification().getIdentifier(),
-                        issued.token()
+                        authProperties.getVerification().isExposeTokenInResponse() ? issued.token() : null
                 ))
                 .orElseGet(ForgotPasswordResponse::generic);
     }
