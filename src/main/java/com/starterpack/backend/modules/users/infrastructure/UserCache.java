@@ -10,7 +10,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class UserCache {
     private static final String PREFIX = "users";
-    private static final Logger logger = LoggerFactory.getLogger(UserCache.class);
     private static final Logger cacheLogger = LoggerFactory.getLogger("CACHE");
 
     private final StringRedisTemplate redis;
