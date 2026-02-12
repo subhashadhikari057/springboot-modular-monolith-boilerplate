@@ -1,21 +1,29 @@
 package com.starterpack.backend.modules.users.infrastructure;
 
 import java.time.Duration;
+import java.util.Optional;
 
+import com.starterpack.backend.common.web.PagedResponse;
+import com.starterpack.backend.modules.users.api.dto.UserResponse;
+import com.starterpack.backend.modules.users.application.port.UserListCachePort;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
-public class UserCache {
+public class UserCache implements UserListCachePort {
     private static final String PREFIX = "users";
     private static final Logger cacheLogger = LoggerFactory.getLogger("CACHE");
 
     private final StringRedisTemplate redis;
+    private final ObjectMapper objectMapper;
 
-    public UserCache(StringRedisTemplate redis) {
+    public UserCache(StringRedisTemplate redis, ObjectMapper objectMapper) {
         this.redis = redis;
+        this.objectMapper = objectMapper;
     }
 
     public String getById(String userId) {
@@ -70,26 +78,44 @@ public class UserCache {
         }
     }
 
-    public String getList(String listKey) {
+    @Override
+    public Optional<PagedResponse<UserResponse>> getList(String listKey) {
         try {
-            String value = redis.opsForValue().get(listKey);
-            cacheLogger.info("CACHE_USER_LIST_GET key={} hit={}", listKey, value != null);
-            return value;
+            String json = redis.opsForValue().get(listKey);
+            if (json == null) {
+                cacheLogger.info("CACHE_USER_LIST_GET key={} hit=false", listKey);
+                return Optional.empty();
+            }
+            PagedResponse<UserResponse> value = objectMapper.readValue(
+                    json,
+                    objectMapper.getTypeFactory().constructParametricType(PagedResponse.class, UserResponse.class)
+            );
+            cacheLogger.info("CACHE_USER_LIST_GET key={} hit=true", listKey);
+            return Optional.of(value);
+        } catch (JsonProcessingException ex) {
+            redis.delete(listKey);
+            cacheLogger.info("CACHE_USER_LIST_STALE key={} action=deleted", listKey);
+            return Optional.empty();
         } catch (RuntimeException ex) {
             logCacheFailure("getList", ex);
-            return null;
+            return Optional.empty();
         }
     }
 
-    public void putList(String listKey, String json, Duration ttl) {
+    @Override
+    public void putList(String listKey, PagedResponse<UserResponse> response, Duration ttl) {
         try {
+            String json = objectMapper.writeValueAsString(response);
             redis.opsForValue().set(listKey, json, ttl);
             cacheLogger.info("CACHE_USER_LIST_PUT key={} ttl={}", listKey, ttl);
+        } catch (JsonProcessingException ex) {
+            cacheLogger.warn("CACHE_USER_LIST_SERIALIZE_FAILED key={} message={}", listKey, ex.getMessage());
         } catch (RuntimeException ex) {
             logCacheFailure("putList", ex);
         }
     }
 
+    @Override
     public void invalidateLists() {
         // For testing: clear all cached list pages.
         // Note: KEYS is not recommended for large datasets in production.

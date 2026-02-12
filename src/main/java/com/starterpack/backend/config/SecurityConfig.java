@@ -1,6 +1,6 @@
 package com.starterpack.backend.config;
 
-import com.starterpack.backend.modules.auth.infrastructure.AuthSessionCache;
+import com.starterpack.backend.modules.auth.application.port.AuthSessionCachePort;
 import com.starterpack.backend.modules.users.infrastructure.SessionRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -53,7 +53,7 @@ public class SecurityConfig {
     public SessionAuthenticationFilter sessionAuthenticationFilter(
             SessionRepository sessionRepository,
             AuthProperties authProperties,
-            AuthSessionCache authSessionCache
+            AuthSessionCachePort authSessionCache
     ) {
         return new SessionAuthenticationFilter(sessionRepository, authProperties, authSessionCache);
     }

@@ -2,26 +2,25 @@ package com.starterpack.backend.modules.users.application;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.starterpack.backend.common.error.AppException;
 import com.starterpack.backend.common.web.PageMeta;
 import com.starterpack.backend.common.web.PagedResponse;
 import com.starterpack.backend.config.CacheProperties;
-import com.starterpack.backend.modules.auth.infrastructure.AuthSessionCache;
+import com.starterpack.backend.modules.auth.application.port.AuthSessionCachePort;
 import com.starterpack.backend.modules.users.api.dto.CreateUserRequest;
 import com.starterpack.backend.modules.users.api.dto.UserResponse;
+import com.starterpack.backend.modules.users.application.port.UserListCachePort;
 import com.starterpack.backend.modules.users.domain.Account;
 import com.starterpack.backend.modules.users.domain.Role;
 import com.starterpack.backend.modules.users.domain.User;
 import com.starterpack.backend.modules.users.infrastructure.AccountRepository;
 import com.starterpack.backend.modules.users.infrastructure.RoleRepository;
 import com.starterpack.backend.modules.users.infrastructure.SessionRepository;
-import com.starterpack.backend.modules.users.infrastructure.UserCache;
 import com.starterpack.backend.modules.users.infrastructure.UserRepository;
 import com.starterpack.backend.modules.users.infrastructure.VerificationRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -40,11 +39,10 @@ public class UserService {
     private final AccountRepository accountRepository;
     private final VerificationRepository verificationRepository;
     private final PasswordEncoder passwordEncoder;
-    private final UserCache userCache;
+    private final UserListCachePort userListCache;
     private final SessionRepository sessionRepository;
-    private final AuthSessionCache authSessionCache;
+    private final AuthSessionCachePort authSessionCache;
     private final CacheProperties cacheProperties;
-    private final ObjectMapper objectMapper;
 
     public UserService(
             UserRepository userRepository,
@@ -52,22 +50,20 @@ public class UserService {
             AccountRepository accountRepository,
             VerificationRepository verificationRepository,
             PasswordEncoder passwordEncoder,
-            UserCache userCache,
+            UserListCachePort userListCache,
             SessionRepository sessionRepository,
-            AuthSessionCache authSessionCache,
-            CacheProperties cacheProperties,
-            ObjectMapper objectMapper
+            AuthSessionCachePort authSessionCache,
+            CacheProperties cacheProperties
     ) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.accountRepository = accountRepository;
         this.verificationRepository = verificationRepository;
         this.passwordEncoder = passwordEncoder;
-        this.userCache = userCache;
+        this.userListCache = userListCache;
         this.sessionRepository = sessionRepository;
         this.authSessionCache = authSessionCache;
         this.cacheProperties = cacheProperties;
-        this.objectMapper = objectMapper;
     }
 
     public User createUser(CreateUserRequest request) {
@@ -95,7 +91,7 @@ public class UserService {
         account.setPasswordHash(passwordEncoder.encode(request.password()));
         accountRepository.save(account);
 
-        userCache.invalidateLists();
+        userListCache.invalidateLists();
         return user;
     }
 
@@ -108,17 +104,10 @@ public class UserService {
     @Transactional(readOnly = true)
     public PagedResponse<UserResponse> listUsers(int page, int size, String sortBy, Sort.Direction sortDirection) {
         String listCacheKey = listCacheKey(page, size, sortBy, sortDirection);
-        String cached = userCache.getList(listCacheKey);
-        if (cached != null) {
-            userCache.logHit(listCacheKey);
-            PagedResponse<UserResponse> response = readPagedUserResponse(cached);
-            if (response != null) {
-                return response;
-            }
-            userCache.invalidateLists();
+        Optional<PagedResponse<UserResponse>> cached = userListCache.getList(listCacheKey);
+        if (cached.isPresent()) {
+            return cached.get();
         }
-
-        userCache.logMiss(listCacheKey);
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, sortBy));
         Page<User> users = userRepository.findAll(pageable);
@@ -139,14 +128,14 @@ public class UserService {
         user.setRole(role);
         sessionRepository.deleteByUserId(user.getId());
         authSessionCache.evictAllUserSessions(user.getId());
-        userCache.invalidateLists();
+        userListCache.invalidateLists();
         return user;
     }
 
     public void deleteUser(UUID userId) {
         User user = getUser(userId);
         verificationRepository.deleteByIdentifier(user.getId().toString());
-        userCache.invalidateLists();
+        userListCache.invalidateLists();
         userRepository.delete(user);
     }
 
@@ -161,23 +150,7 @@ public class UserService {
     }
 
     private void cacheUserList(String listCacheKey, PagedResponse<UserResponse> response) {
-        try {
-            String json = objectMapper.writeValueAsString(response);
-            userCache.putList(listCacheKey, json, cacheProperties.getUsers().getListTtl());
-        } catch (JsonProcessingException ignored) {
-            // Cache failures should not affect request flow.
-        }
-    }
-
-    private PagedResponse<UserResponse> readPagedUserResponse(String cached) {
-        try {
-            return objectMapper.readValue(
-                    cached,
-                    objectMapper.getTypeFactory().constructParametricType(PagedResponse.class, UserResponse.class)
-            );
-        } catch (JsonProcessingException ignored) {
-            return null;
-        }
+        userListCache.putList(listCacheKey, response, cacheProperties.getUsers().getListTtl());
     }
 
     private String listCacheKey(int page, int size, String sortBy, Sort.Direction sortDirection) {

@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Set;
 
 import com.starterpack.backend.modules.auth.application.model.CachedAuthContext;
-import com.starterpack.backend.modules.auth.infrastructure.AuthSessionCache;
+import com.starterpack.backend.modules.auth.application.port.AuthSessionCachePort;
 import com.starterpack.backend.modules.users.domain.Permission;
 import com.starterpack.backend.modules.users.domain.Role;
 import com.starterpack.backend.modules.users.domain.Session;
@@ -27,12 +27,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class SessionAuthenticationFilter extends OncePerRequestFilter {
     private final SessionRepository sessionRepository;
     private final AuthProperties authProperties;
-    private final AuthSessionCache authSessionCache;
+    private final AuthSessionCachePort authSessionCache;
 
     public SessionAuthenticationFilter(
             SessionRepository sessionRepository,
             AuthProperties authProperties,
-            AuthSessionCache authSessionCache
+            AuthSessionCachePort authSessionCache
     ) {
         this.sessionRepository = sessionRepository;
         this.authProperties = authProperties;

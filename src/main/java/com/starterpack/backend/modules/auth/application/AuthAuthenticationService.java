@@ -8,7 +8,7 @@ import com.starterpack.backend.common.error.AppException;
 import com.starterpack.backend.config.AuthProperties;
 import com.starterpack.backend.modules.auth.api.dto.LoginRequest;
 import com.starterpack.backend.modules.auth.api.dto.RegisterRequest;
-import com.starterpack.backend.modules.auth.infrastructure.AuthSessionCache;
+import com.starterpack.backend.modules.auth.application.port.AuthSessionCachePort;
 import com.starterpack.backend.modules.users.domain.Account;
 import com.starterpack.backend.modules.users.domain.Role;
 import com.starterpack.backend.modules.users.domain.Session;
@@ -32,7 +32,7 @@ public class AuthAuthenticationService {
     private final SessionRepository sessionRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthProperties authProperties;
-    private final AuthSessionCache authSessionCache;
+    private final AuthSessionCachePort authSessionCache;
     private final AuthTokenService authTokenService;
 
     public AuthAuthenticationService(
@@ -42,7 +42,7 @@ public class AuthAuthenticationService {
             SessionRepository sessionRepository,
             PasswordEncoder passwordEncoder,
             AuthProperties authProperties,
-            AuthSessionCache authSessionCache,
+            AuthSessionCachePort authSessionCache,
             AuthTokenService authTokenService
     ) {
         this.userRepository = userRepository;

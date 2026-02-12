@@ -8,6 +8,8 @@ import java.util.UUID;
 
 import com.starterpack.backend.config.AuthProperties;
 import com.starterpack.backend.modules.auth.application.model.CachedAuthContext;
+import com.starterpack.backend.modules.auth.application.model.CachedRefreshRef;
+import com.starterpack.backend.modules.auth.application.port.AuthSessionCachePort;
 import com.starterpack.backend.modules.users.domain.Session;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,7 +19,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
-public class AuthSessionCache {
+public class AuthSessionCache implements AuthSessionCachePort {
     private static final Logger logger = LoggerFactory.getLogger(AuthSessionCache.class);
     private static final Logger cacheLogger = LoggerFactory.getLogger("CACHE");
 
@@ -203,12 +205,4 @@ public class AuthSessionCache {
         return token.substring(0, Math.min(8, token.length()));
     }
 
-    public record CachedRefreshRef(
-            UUID sessionId,
-            UUID userId,
-            String sessionToken,
-            String refreshToken,
-            OffsetDateTime refreshExpiresAt
-    ) {
-    }
 }

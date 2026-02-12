@@ -7,7 +7,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.starterpack.backend.common.error.AppException;
-import com.starterpack.backend.modules.auth.infrastructure.AuthSessionCache;
+import com.starterpack.backend.modules.auth.application.port.AuthSessionCachePort;
 import com.starterpack.backend.modules.users.api.dto.CreateRoleRequest;
 import com.starterpack.backend.modules.users.domain.Permission;
 import com.starterpack.backend.modules.users.domain.Role;
@@ -25,14 +25,14 @@ public class RoleService {
     private final PermissionRepository permissionRepository;
     private final UserRepository userRepository;
     private final SessionRepository sessionRepository;
-    private final AuthSessionCache authSessionCache;
+    private final AuthSessionCachePort authSessionCache;
 
     public RoleService(
             RoleRepository roleRepository,
             PermissionRepository permissionRepository,
             UserRepository userRepository,
             SessionRepository sessionRepository,
-            AuthSessionCache authSessionCache
+            AuthSessionCachePort authSessionCache
     ) {
         this.roleRepository = roleRepository;
         this.permissionRepository = permissionRepository;

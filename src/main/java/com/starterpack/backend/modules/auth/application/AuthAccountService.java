@@ -6,7 +6,7 @@ import com.starterpack.backend.common.error.AppException;
 import com.starterpack.backend.modules.auth.api.dto.ChangePasswordRequest;
 import com.starterpack.backend.modules.auth.api.dto.ResetPasswordRequest;
 import com.starterpack.backend.modules.auth.api.dto.UpdateMyProfileRequest;
-import com.starterpack.backend.modules.auth.infrastructure.AuthSessionCache;
+import com.starterpack.backend.modules.auth.application.port.AuthSessionCachePort;
 import com.starterpack.backend.modules.users.domain.Account;
 import com.starterpack.backend.modules.users.domain.User;
 import com.starterpack.backend.modules.users.infrastructure.AccountRepository;
@@ -25,7 +25,7 @@ public class AuthAccountService {
     private final AccountRepository accountRepository;
     private final SessionRepository sessionRepository;
     private final PasswordEncoder passwordEncoder;
-    private final AuthSessionCache authSessionCache;
+    private final AuthSessionCachePort authSessionCache;
     private final AuthVerificationService authVerificationService;
 
     public AuthAccountService(
@@ -33,7 +33,7 @@ public class AuthAccountService {
             AccountRepository accountRepository,
             SessionRepository sessionRepository,
             PasswordEncoder passwordEncoder,
-            AuthSessionCache authSessionCache,
+            AuthSessionCachePort authSessionCache,
             AuthVerificationService authVerificationService
     ) {
         this.userRepository = userRepository;
