@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import com.starterpack.backend.common.web.PageMeta;
 import com.starterpack.backend.common.web.PagedResponse;
+import com.starterpack.backend.config.CacheProperties;
 import com.starterpack.backend.modules.auth.infrastructure.AuthSessionCache;
 import com.starterpack.backend.modules.users.api.dto.CreateUserRequest;
 import com.starterpack.backend.modules.users.api.dto.UserResponse;
@@ -34,7 +35,6 @@ import org.springframework.web.server.ResponseStatusException;
 @Transactional
 public class UserService {
     private static final String LOCAL_PROVIDER = "local";
-    private static final java.time.Duration USER_CACHE_TTL = java.time.Duration.ofMinutes(5);
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -44,6 +44,7 @@ public class UserService {
     private final UserCache userCache;
     private final SessionRepository sessionRepository;
     private final AuthSessionCache authSessionCache;
+    private final CacheProperties cacheProperties;
     private final ObjectMapper objectMapper;
 
     public UserService(
@@ -55,6 +56,7 @@ public class UserService {
             UserCache userCache,
             SessionRepository sessionRepository,
             AuthSessionCache authSessionCache,
+            CacheProperties cacheProperties,
             ObjectMapper objectMapper
     ) {
         this.userRepository = userRepository;
@@ -65,6 +67,7 @@ public class UserService {
         this.userCache = userCache;
         this.sessionRepository = sessionRepository;
         this.authSessionCache = authSessionCache;
+        this.cacheProperties = cacheProperties;
         this.objectMapper = objectMapper;
     }
 
@@ -164,7 +167,7 @@ public class UserService {
     private void cacheUserList(String listCacheKey, PagedResponse<UserResponse> response) {
         try {
             String json = objectMapper.writeValueAsString(response);
-            userCache.putList(listCacheKey, json, USER_CACHE_TTL);
+            userCache.putList(listCacheKey, json, cacheProperties.getUsers().getListTtl());
         } catch (JsonProcessingException ignored) {
             // Cache failures should not affect request flow.
         }

@@ -69,6 +69,10 @@ auth:
     prefix: auth
     user-session-set-prefix: auth:user-sessions
 
+cache:
+  users:
+    list-ttl: PT5M
+
 upload:
   max-file-size-bytes: 52428800
   allowed-content-types: []
