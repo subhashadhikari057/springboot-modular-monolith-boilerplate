@@ -12,6 +12,7 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("Backend Boilerplate API")
-                        .version("v1"));
+                        .version("v1")
+                        .description("API documentation for authentication, users, roles, permissions, and uploads."));
     }
 }

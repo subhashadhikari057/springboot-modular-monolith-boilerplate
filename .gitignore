@@ -43,5 +43,7 @@ logs/
 # Env variants
 *.env
 
+/uploads
+
 # IDE/build outputs
 out/

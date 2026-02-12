@@ -4,7 +4,10 @@ import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
+import com.starterpack.backend.modules.auth.application.model.CachedAuthContext;
+import com.starterpack.backend.modules.auth.infrastructure.AuthSessionCache;
 import com.starterpack.backend.modules.users.domain.Permission;
 import com.starterpack.backend.modules.users.domain.Role;
 import com.starterpack.backend.modules.users.domain.Session;
@@ -24,10 +27,16 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class SessionAuthenticationFilter extends OncePerRequestFilter {
     private final SessionRepository sessionRepository;
     private final AuthProperties authProperties;
+    private final AuthSessionCache authSessionCache;
 
-    public SessionAuthenticationFilter(SessionRepository sessionRepository, AuthProperties authProperties) {
+    public SessionAuthenticationFilter(
+            SessionRepository sessionRepository,
+            AuthProperties authProperties,
+            AuthSessionCache authSessionCache
+    ) {
         this.sessionRepository = sessionRepository;
         this.authProperties = authProperties;
+        this.authSessionCache = authSessionCache;
     }
 
     @Override
@@ -39,8 +48,15 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
         if (SecurityContextHolder.getContext().getAuthentication() == null) {
             String token = extractSessionToken(request);
             if (token != null) {
-                sessionRepository.findByTokenAndExpiresAtAfter(token, OffsetDateTime.now())
-                        .ifPresent(session -> authenticate(session, request));
+                authSessionCache.findBySessionToken(token)
+                        .ifPresentOrElse(
+                                cached -> authenticate(cached, request),
+                                () -> sessionRepository.findByTokenAndExpiresAtAfter(token, OffsetDateTime.now())
+                                        .ifPresent(session -> {
+                                            authSessionCache.cacheSession(session);
+                                            authenticate(session, request);
+                                        })
+                        );
             }
         }
 
@@ -49,19 +65,48 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
 
     private void authenticate(Session session, HttpServletRequest request) {
         User user = session.getUser();
+        List<GrantedAuthority> authorities = authorities(user.getRole());
+
+        UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken(user, null, authorities);
+        authentication.setDetails(request);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+    }
+
+    private void authenticate(CachedAuthContext context, HttpServletRequest request) {
+        User principal = new User();
+        principal.setId(context.userId());
+        Role role = new Role();
+        role.setName(context.roleName());
+        principal.setRole(role);
+
+        List<GrantedAuthority> authorities = authorities(context.roleName(), context.permissions());
+        UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken(principal, null, authorities);
+        authentication.setDetails(request);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+    }
+
+    private List<GrantedAuthority> authorities(Role role) {
         List<GrantedAuthority> authorities = new ArrayList<>();
-        Role role = user.getRole();
         if (role != null) {
             authorities.add(new SimpleGrantedAuthority("ROLE_" + role.getName()));
             for (Permission permission : role.getPermissions()) {
                 authorities.add(new SimpleGrantedAuthority(permission.getName()));
             }
         }
+        return authorities;
+    }
 
-        UsernamePasswordAuthenticationToken authentication =
-                new UsernamePasswordAuthenticationToken(user, null, authorities);
-        authentication.setDetails(request);
-        SecurityContextHolder.getContext().setAuthentication(authentication);
+    private List<GrantedAuthority> authorities(String roleName, Set<String> permissions) {
+        List<GrantedAuthority> authorities = new ArrayList<>();
+        if (roleName != null && !roleName.isBlank()) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_" + roleName));
+        }
+        if (permissions != null) {
+            permissions.forEach(permission -> authorities.add(new SimpleGrantedAuthority(permission)));
+        }
+        return authorities;
     }
 
     private String extractSessionToken(HttpServletRequest request) {

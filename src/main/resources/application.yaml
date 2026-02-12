@@ -9,9 +9,10 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
-  redis:
-    host: ${SPRING_REDIS_HOST}
-    port: ${SPRING_REDIS_PORT}
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST}
+      port: ${SPRING_REDIS_PORT}
   rabbitmq:
     host: ${SPRING_RABBITMQ_HOST}
     port: ${SPRING_RABBITMQ_PORT}
@@ -25,6 +26,10 @@ spring:
     properties:
       mail.smtp.auth: false
       mail.smtp.starttls.enable: false
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 200MB
 
 server:
   port: ${PORT:8080}
@@ -60,3 +65,17 @@ auth:
     ttl: PT168H
   verification:
     ttl: PT15M
+  cache:
+    prefix: auth
+    user-session-set-prefix: auth:user-sessions
+
+cache:
+  users:
+    list-ttl: PT5M
+
+upload:
+  max-file-size-bytes: 52428800
+  allowed-content-types: []
+  local:
+    base-dir: uploads
+    public-base-url: /files

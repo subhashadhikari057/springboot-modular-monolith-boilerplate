@@ -4,12 +4,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 
+import com.starterpack.backend.modules.auth.infrastructure.AuthSessionCache;
 import com.starterpack.backend.modules.users.api.dto.CreateRoleRequest;
 import com.starterpack.backend.modules.users.domain.Permission;
 import com.starterpack.backend.modules.users.domain.Role;
 import com.starterpack.backend.modules.users.infrastructure.PermissionRepository;
 import com.starterpack.backend.modules.users.infrastructure.RoleRepository;
+import com.starterpack.backend.modules.users.infrastructure.SessionRepository;
+import com.starterpack.backend.modules.users.infrastructure.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,10 +24,22 @@ import org.springframework.web.server.ResponseStatusException;
 public class RoleService {
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
+    private final UserRepository userRepository;
+    private final SessionRepository sessionRepository;
+    private final AuthSessionCache authSessionCache;
 
-    public RoleService(RoleRepository roleRepository, PermissionRepository permissionRepository) {
+    public RoleService(
+            RoleRepository roleRepository,
+            PermissionRepository permissionRepository,
+            UserRepository userRepository,
+            SessionRepository sessionRepository,
+            AuthSessionCache authSessionCache
+    ) {
         this.roleRepository = roleRepository;
         this.permissionRepository = permissionRepository;
+        this.userRepository = userRepository;
+        this.sessionRepository = sessionRepository;
+        this.authSessionCache = authSessionCache;
     }
 
     public Role createRole(CreateRoleRequest request) {
@@ -53,6 +69,13 @@ public class RoleService {
         }
 
         role.setPermissions(new HashSet<>(permissions));
+        revokeRoleSessions(roleId);
         return role;
+    }
+
+    private void revokeRoleSessions(Integer roleId) {
+        List<UUID> userIds = userRepository.findIdsByRoleId(roleId);
+        sessionRepository.deleteByUserRoleId(roleId);
+        userIds.forEach(authSessionCache::evictAllUserSessions);
     }
 }

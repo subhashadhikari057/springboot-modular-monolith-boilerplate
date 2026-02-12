@@ -1,5 +1,6 @@
 package com.starterpack.backend.config;
 
+import com.starterpack.backend.modules.auth.infrastructure.AuthSessionCache;
 import com.starterpack.backend.modules.users.infrastructure.SessionRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -51,9 +52,10 @@ public class SecurityConfig {
     @Bean
     public SessionAuthenticationFilter sessionAuthenticationFilter(
             SessionRepository sessionRepository,
-            AuthProperties authProperties
+            AuthProperties authProperties,
+            AuthSessionCache authSessionCache
     ) {
-        return new SessionAuthenticationFilter(sessionRepository, authProperties);
+        return new SessionAuthenticationFilter(sessionRepository, authProperties, authSessionCache);
     }
 
     @Bean

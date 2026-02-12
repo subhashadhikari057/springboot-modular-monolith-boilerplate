@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/roles")
-@Tag(name = "Roles", description = "Role management")
+@Tag(name = "Roles", description = "Role lifecycle and permission mapping")
 @Validated
 public class RoleController {
     private final RoleService roleService;

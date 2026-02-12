@@ -6,7 +6,7 @@ It is documentation only; migrations are the source of truth.
 Use one file per module, for example:
 
 - `users.md`
-- `orders.md`
+- `uploads.md`
 
 Include:
 - Purpose of the module

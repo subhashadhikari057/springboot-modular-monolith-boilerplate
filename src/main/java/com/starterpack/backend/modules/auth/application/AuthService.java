@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.starterpack.backend.config.AuthProperties;
+import com.starterpack.backend.modules.auth.infrastructure.AuthSessionCache;
 import com.starterpack.backend.modules.auth.api.dto.ChangePasswordRequest;
 import com.starterpack.backend.modules.auth.api.dto.ConfirmVerificationRequest;
 import com.starterpack.backend.modules.auth.api.dto.ForgotPasswordRequest;
@@ -49,6 +50,7 @@ public class AuthService {
     private final VerificationRepository verificationRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthProperties authProperties;
+    private final AuthSessionCache authSessionCache;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public AuthService(
@@ -58,7 +60,8 @@ public class AuthService {
             SessionRepository sessionRepository,
             VerificationRepository verificationRepository,
             PasswordEncoder passwordEncoder,
-            AuthProperties authProperties
+            AuthProperties authProperties,
+            AuthSessionCache authSessionCache
     ) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
@@ -67,6 +70,7 @@ public class AuthService {
         this.verificationRepository = verificationRepository;
         this.passwordEncoder = passwordEncoder;
         this.authProperties = authProperties;
+        this.authSessionCache = authSessionCache;
     }
 
     public AuthSession register(RegisterRequest request, String ipAddress, String userAgent) {
@@ -96,6 +100,7 @@ public class AuthService {
         accountRepository.save(account);
 
         Session session = createSession(user, ipAddress, userAgent);
+        authSessionCache.cacheSession(session);
         return toAuthSession(user, session);
     }
 
@@ -112,16 +117,26 @@ public class AuthService {
         }
 
         Session session = createSession(user, ipAddress, userAgent);
+        authSessionCache.cacheSession(session);
         return toAuthSession(user, session);
     }
 
     public void logout(String sessionToken, String refreshToken) {
-        if (sessionToken != null && !sessionToken.isBlank()) {
-            sessionRepository.deleteByToken(sessionToken);
-        }
-        if (refreshToken != null && !refreshToken.isBlank()) {
-            sessionRepository.deleteByRefreshToken(refreshToken);
-        }
+        Optional<Session> session = resolveSessionForLogout(sessionToken, refreshToken);
+        session.ifPresentOrElse(existing -> {
+                    sessionRepository.delete(existing);
+                    authSessionCache.evictSession(existing.getToken(), existing.getRefreshToken(), existing.getUser().getId());
+                },
+                () -> {
+                    if (sessionToken != null && !sessionToken.isBlank()) {
+                        sessionRepository.deleteByToken(sessionToken);
+                    }
+                    if (refreshToken != null && !refreshToken.isBlank()) {
+                        sessionRepository.deleteByRefreshToken(refreshToken);
+                    }
+                    authSessionCache.evictSession(sessionToken, refreshToken, null);
+                }
+        );
     }
 
     @Transactional(readOnly = true)
@@ -144,12 +159,22 @@ public class AuthService {
         if (refreshToken == null || refreshToken.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token is missing");
         }
-        Session existingSession = sessionRepository.findByRefreshTokenAndRefreshExpiresAtAfter(refreshToken, OffsetDateTime.now())
+        Optional<Session> cachedSession = authSessionCache.findByRefreshToken(refreshToken)
+                .flatMap(cachedRef -> sessionRepository.findByIdWithUserAndPermissions(cachedRef.sessionId()));
+
+        Session existingSession = cachedSession.or(() -> sessionRepository.findByRefreshTokenAndRefreshExpiresAtAfter(refreshToken, OffsetDateTime.now()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token is invalid or expired"));
+
+        if (!refreshToken.equals(existingSession.getRefreshToken()) || existingSession.getRefreshExpiresAt().isBefore(OffsetDateTime.now())) {
+            authSessionCache.evictSession(existingSession.getToken(), existingSession.getRefreshToken(), existingSession.getUser().getId());
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token is invalid or expired");
+        }
 
         User user = existingSession.getUser();
         sessionRepository.delete(existingSession);
+        authSessionCache.evictSession(existingSession.getToken(), existingSession.getRefreshToken(), user.getId());
         Session newSession = createSession(user, ipAddress, userAgent);
+        authSessionCache.cacheSession(newSession);
         return toAuthSession(user, newSession);
     }
 
@@ -163,6 +188,7 @@ public class AuthService {
 
         account.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         sessionRepository.deleteByUserId(user.getId());
+        authSessionCache.evictAllUserSessions(user.getId());
     }
 
     public IssuedVerification requestVerification(User user, RequestVerificationRequest request) {
@@ -240,6 +266,7 @@ public class AuthService {
         account.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         verification.setConsumedAt(OffsetDateTime.now());
         sessionRepository.deleteByUserId(user.getId());
+        authSessionCache.evictAllUserSessions(user.getId());
     }
 
     private Session createSession(User user, String ipAddress, String userAgent) {
@@ -362,5 +389,18 @@ public class AuthService {
     }
 
     public record IssuedVerification(Verification verification, String token) {
+    }
+
+    private Optional<Session> resolveSessionForLogout(String sessionToken, String refreshToken) {
+        if (sessionToken != null && !sessionToken.isBlank()) {
+            Optional<Session> sessionOpt = sessionRepository.findByToken(sessionToken);
+            if (sessionOpt.isPresent()) {
+                return sessionOpt;
+            }
+        }
+        if (refreshToken != null && !refreshToken.isBlank()) {
+            return sessionRepository.findByRefreshToken(refreshToken);
+        }
+        return Optional.empty();
     }
 }

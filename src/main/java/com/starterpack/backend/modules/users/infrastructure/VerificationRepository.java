@@ -19,4 +19,6 @@ public interface VerificationRepository extends JpaRepository<Verification, UUID
             String tokenHash,
             OffsetDateTime now
     );
+
+    void deleteByIdentifier(String identifier);
 }

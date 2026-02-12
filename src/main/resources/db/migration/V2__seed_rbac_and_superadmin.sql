@@ -11,6 +11,7 @@ INSERT INTO permissions (name, description)
 VALUES
     ('user:create', 'Create users'),
     ('user:read', 'Read users'),
+    ('user:delete', 'Delete users'),
     ('user:update-role', 'Update user role'),
     ('role:create', 'Create roles'),
     ('role:read', 'Read roles'),
