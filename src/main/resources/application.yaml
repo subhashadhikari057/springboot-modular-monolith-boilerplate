@@ -65,6 +65,9 @@ auth:
     ttl: PT168H
   verification:
     ttl: PT15M
+  cache:
+    prefix: auth
+    user-session-set-prefix: auth:user-sessions
 
 upload:
   max-file-size-bytes: 52428800

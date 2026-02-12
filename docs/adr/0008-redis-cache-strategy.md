@@ -8,13 +8,21 @@ The project needs lower latency for repeated read paths and a pattern to avoid u
 
 ## Decision
 Use Redis as a cache layer with module-owned keys and TTL-driven cache entries.  
-Current implementation targets user list caching in users module and invalidates list entries on write operations.
+Current implementation includes auth-session cache keys:
+- `auth:sid:<sid>` for authenticated session context (role + permissions).
+- `auth:rid:<rid>` for refresh-token lookup.
+- `auth:user-sessions:<userId>` for bulk invalidation operations.
+
+Invalidation rules:
+- logout: remove sid/rid keys.
+- refresh rotation: remove old sid/rid and write new keys.
+- password change/reset: remove all user session keys.
+- role/permission changes: immediate revocation of affected users' active sessions.
 
 ## Alternatives Considered
 1. No caching (DB-only reads)
 2. Shared global cache helper without module ownership
 
 ## Consequences/Tradeoffs
-- Pros: reduced read latency and DB pressure for repeated queries.
-- Cons: cache invalidation complexity; key strategy and invalidation approach must evolve for production-scale safety.
-
+- Pros: reduced auth read latency and lower DB pressure for protected requests.
+- Cons: cache invalidation complexity and operational dependency on Redis availability for best performance.

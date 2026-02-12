@@ -11,6 +11,7 @@ public class AuthProperties {
     private final Session session = new Session();
     private final Refresh refresh = new Refresh();
     private final Verification verification = new Verification();
+    private final Cache cache = new Cache();
 
     public AuthProperties() {
         refreshCookie.setName("rid");
@@ -34,6 +35,10 @@ public class AuthProperties {
 
     public Verification getVerification() {
         return verification;
+    }
+
+    public Cache getCache() {
+        return cache;
     }
 
     public static class Cookie {
@@ -117,6 +122,27 @@ public class AuthProperties {
 
         public void setTtl(Duration ttl) {
             this.ttl = ttl;
+        }
+    }
+
+    public static class Cache {
+        private String prefix = "auth";
+        private String userSessionSetPrefix = "auth:user-sessions";
+
+        public String getPrefix() {
+            return prefix;
+        }
+
+        public void setPrefix(String prefix) {
+            this.prefix = prefix;
+        }
+
+        public String getUserSessionSetPrefix() {
+            return userSessionSetPrefix;
+        }
+
+        public void setUserSessionSetPrefix(String userSessionSetPrefix) {
+            this.userSessionSetPrefix = userSessionSetPrefix;
         }
     }
 }

@@ -9,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -24,4 +25,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @EntityGraph(attributePaths = {"role", "role.permissions"})
     Optional<User> findByEmailIgnoreCase(String email);
+
+    @Query("select u.id from User u where u.role.id = :roleId")
+    List<UUID> findIdsByRoleId(Integer roleId);
 }

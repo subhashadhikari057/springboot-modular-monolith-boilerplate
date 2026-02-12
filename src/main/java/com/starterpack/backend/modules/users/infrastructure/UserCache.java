@@ -21,7 +21,10 @@ public class UserCache {
 
     public String getById(String userId) {
         try {
-            return redis.opsForValue().get(keyById(userId));
+            String key = keyById(userId);
+            String value = redis.opsForValue().get(key);
+            cacheLogger.info("CACHE_USER_GET key={} hit={}", key, value != null);
+            return value;
         } catch (RuntimeException ex) {
             logCacheFailure("getById", ex);
             return null;
@@ -30,7 +33,9 @@ public class UserCache {
 
     public void putById(String userId, String json, Duration ttl) {
         try {
-            redis.opsForValue().set(keyById(userId), json, ttl);
+            String key = keyById(userId);
+            redis.opsForValue().set(key, json, ttl);
+            cacheLogger.info("CACHE_USER_PUT key={} ttl={}", key, ttl);
         } catch (RuntimeException ex) {
             logCacheFailure("putById", ex);
         }
@@ -38,7 +43,9 @@ public class UserCache {
 
     public void invalidateById(String userId) {
         try {
-            redis.delete(keyById(userId));
+            String key = keyById(userId);
+            redis.delete(key);
+            cacheLogger.info("CACHE_USER_EVICT key={}", key);
         } catch (RuntimeException ex) {
             logCacheFailure("invalidateById", ex);
         }
@@ -46,7 +53,9 @@ public class UserCache {
 
     public void invalidateByEmail(String email) {
         try {
-            redis.delete(keyByEmail(email));
+            String key = keyByEmail(email);
+            redis.delete(key);
+            cacheLogger.info("CACHE_USER_EVICT key={}", key);
         } catch (RuntimeException ex) {
             logCacheFailure("invalidateByEmail", ex);
         }
@@ -54,7 +63,9 @@ public class UserCache {
 
     public void putByEmail(String email, String json, Duration ttl) {
         try {
-            redis.opsForValue().set(keyByEmail(email), json, ttl);
+            String key = keyByEmail(email);
+            redis.opsForValue().set(key, json, ttl);
+            cacheLogger.info("CACHE_USER_PUT key={} ttl={}", key, ttl);
         } catch (RuntimeException ex) {
             logCacheFailure("putByEmail", ex);
         }
@@ -62,7 +73,9 @@ public class UserCache {
 
     public String getList(String listKey) {
         try {
-            return redis.opsForValue().get(listKey);
+            String value = redis.opsForValue().get(listKey);
+            cacheLogger.info("CACHE_USER_LIST_GET key={} hit={}", listKey, value != null);
+            return value;
         } catch (RuntimeException ex) {
             logCacheFailure("getList", ex);
             return null;
@@ -72,6 +85,7 @@ public class UserCache {
     public void putList(String listKey, String json, Duration ttl) {
         try {
             redis.opsForValue().set(listKey, json, ttl);
+            cacheLogger.info("CACHE_USER_LIST_PUT key={} ttl={}", listKey, ttl);
         } catch (RuntimeException ex) {
             logCacheFailure("putList", ex);
         }
@@ -81,7 +95,11 @@ public class UserCache {
         // For testing: clear all cached list pages.
         // Note: KEYS is not recommended for large datasets in production.
         try {
-            redis.delete(redis.keys(PREFIX + ":list:*"));
+            java.util.Set<String> keys = redis.keys(PREFIX + ":list:*");
+            if (keys != null && !keys.isEmpty()) {
+                redis.delete(keys);
+            }
+            cacheLogger.info("CACHE_USER_LIST_EVICT_ALL count={}", keys == null ? 0 : keys.size());
         } catch (RuntimeException ex) {
             logCacheFailure("invalidateLists", ex);
         }

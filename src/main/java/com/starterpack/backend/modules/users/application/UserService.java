@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import com.starterpack.backend.common.web.PageMeta;
 import com.starterpack.backend.common.web.PagedResponse;
+import com.starterpack.backend.modules.auth.infrastructure.AuthSessionCache;
 import com.starterpack.backend.modules.users.api.dto.CreateUserRequest;
 import com.starterpack.backend.modules.users.api.dto.UserResponse;
 import com.starterpack.backend.modules.users.domain.Account;
@@ -13,6 +14,7 @@ import com.starterpack.backend.modules.users.domain.Role;
 import com.starterpack.backend.modules.users.domain.User;
 import com.starterpack.backend.modules.users.infrastructure.AccountRepository;
 import com.starterpack.backend.modules.users.infrastructure.RoleRepository;
+import com.starterpack.backend.modules.users.infrastructure.SessionRepository;
 import com.starterpack.backend.modules.users.infrastructure.UserCache;
 import com.starterpack.backend.modules.users.infrastructure.UserRepository;
 import com.starterpack.backend.modules.users.infrastructure.VerificationRepository;
@@ -40,6 +42,8 @@ public class UserService {
     private final VerificationRepository verificationRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserCache userCache;
+    private final SessionRepository sessionRepository;
+    private final AuthSessionCache authSessionCache;
     private final ObjectMapper objectMapper;
 
     public UserService(
@@ -49,6 +53,8 @@ public class UserService {
             VerificationRepository verificationRepository,
             PasswordEncoder passwordEncoder,
             UserCache userCache,
+            SessionRepository sessionRepository,
+            AuthSessionCache authSessionCache,
             ObjectMapper objectMapper
     ) {
         this.userRepository = userRepository;
@@ -57,6 +63,8 @@ public class UserService {
         this.verificationRepository = verificationRepository;
         this.passwordEncoder = passwordEncoder;
         this.userCache = userCache;
+        this.sessionRepository = sessionRepository;
+        this.authSessionCache = authSessionCache;
         this.objectMapper = objectMapper;
     }
 
@@ -127,6 +135,8 @@ public class UserService {
         Role role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found"));
         user.setRole(role);
+        sessionRepository.deleteByUserId(user.getId());
+        authSessionCache.evictAllUserSessions(user.getId());
         userCache.invalidateLists();
         return user;
     }
