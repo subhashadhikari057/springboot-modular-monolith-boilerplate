@@ -27,6 +27,8 @@ public interface SessionRepository extends JpaRepository<Session, UUID> {
     @Query("select s from Session s where s.id = :id")
     Optional<Session> findByIdWithUserAndPermissions(UUID id);
 
+    Optional<Session> findByIdAndUserId(UUID id, UUID userId);
+
     void deleteByToken(String token);
 
     void deleteByRefreshToken(String refreshToken);

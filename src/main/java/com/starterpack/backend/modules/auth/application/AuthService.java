@@ -1,13 +1,16 @@
 package com.starterpack.backend.modules.auth.application;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import com.starterpack.backend.modules.auth.api.dto.ChangePasswordRequest;
 import com.starterpack.backend.modules.auth.api.dto.ConfirmVerificationRequest;
+import com.starterpack.backend.modules.auth.api.dto.DeleteAccountConfirmRequest;
 import com.starterpack.backend.modules.auth.api.dto.ForgotPasswordRequest;
 import com.starterpack.backend.modules.auth.api.dto.LoginRequest;
+import com.starterpack.backend.modules.auth.api.dto.ReauthRequest;
 import com.starterpack.backend.modules.auth.api.dto.RegisterRequest;
 import com.starterpack.backend.modules.auth.api.dto.RequestVerificationRequest;
 import com.starterpack.backend.modules.auth.api.dto.ResetPasswordRequest;
@@ -46,6 +49,20 @@ public class AuthService {
         authAuthenticationService.logout(sessionToken, refreshToken);
     }
 
+    public List<ManagedSession> listSessions(UUID userId, String currentSessionToken) {
+        return authAuthenticationService.listSessions(userId, currentSessionToken).stream()
+                .map(this::toManagedSession)
+                .toList();
+    }
+
+    public boolean revokeSession(UUID userId, UUID sessionId, String currentSessionToken) {
+        return authAuthenticationService.revokeSession(userId, sessionId, currentSessionToken);
+    }
+
+    public void logoutAll(UUID userId) {
+        authAuthenticationService.logoutAll(userId);
+    }
+
     public User getCurrentUser(UUID userId) {
         return authAccountService.getCurrentUser(userId);
     }
@@ -62,8 +79,16 @@ public class AuthService {
         authAccountService.changePassword(user, request);
     }
 
+    public void reauthenticate(User user, ReauthRequest request) {
+        authAuthenticationService.reauthenticate(user, request.password());
+    }
+
     public IssuedVerification requestVerification(User user, RequestVerificationRequest request) {
         return toIssuedVerification(authVerificationService.requestVerification(user, request));
+    }
+
+    public IssuedVerification resendVerification(User user, RequestVerificationRequest request) {
+        return toIssuedVerification(authVerificationService.resendVerification(user, request));
     }
 
     public void confirmVerification(ConfirmVerificationRequest request) {
@@ -76,6 +101,14 @@ public class AuthService {
 
     public void resetPassword(ResetPasswordRequest request) {
         authAccountService.resetPassword(request);
+    }
+
+    public IssuedVerification requestAccountDeletionVerification(User user) {
+        return toIssuedVerification(authVerificationService.requestAccountDeletionVerification(user));
+    }
+
+    public void deleteMyAccount(User user, DeleteAccountConfirmRequest request) {
+        authAccountService.deleteMyAccount(user, request);
     }
 
     private AuthSession toAuthSession(AuthSessionData sessionData) {
@@ -92,6 +125,18 @@ public class AuthService {
         return new IssuedVerification(issued.verification(), issued.token());
     }
 
+    private ManagedSession toManagedSession(AuthAuthenticationService.ManagedSessionData session) {
+        return new ManagedSession(
+                session.sessionId(),
+                session.current(),
+                session.createdAt(),
+                session.expiresAt(),
+                session.refreshExpiresAt(),
+                session.ipAddress(),
+                session.userAgent()
+        );
+    }
+
     public record AuthSession(
             User user,
             String token,
@@ -102,5 +147,16 @@ public class AuthService {
     }
 
     public record IssuedVerification(Verification verification, String token) {
+    }
+
+    public record ManagedSession(
+            UUID sessionId,
+            boolean current,
+            OffsetDateTime createdAt,
+            OffsetDateTime expiresAt,
+            OffsetDateTime refreshExpiresAt,
+            String ipAddress,
+            String userAgent
+    ) {
     }
 }

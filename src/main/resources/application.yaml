@@ -66,6 +66,7 @@ auth:
   verification:
     ttl: PT15M
     expose-token-in-response: ${AUTH_VERIFICATION_EXPOSE_TOKEN_IN_RESPONSE:true}
+    resend-cooldown: ${AUTH_VERIFICATION_RESEND_COOLDOWN:PT1M}
   cache:
     prefix: auth
     user-session-set-prefix: auth:user-sessions

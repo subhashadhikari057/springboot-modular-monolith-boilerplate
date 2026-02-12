@@ -71,6 +71,7 @@ public class SmtpAuthEmailSender implements AuthEmailSenderPort {
             case EMAIL_VERIFICATION -> "email";
             case PHONE_VERIFICATION -> "phone";
             case PASSWORD_RESET -> "password";
+            case ACCOUNT_DELETION -> "account deletion";
         };
     }
 

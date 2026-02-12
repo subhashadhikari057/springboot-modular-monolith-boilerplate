@@ -11,6 +11,7 @@ import java.util.UUID;
 import com.starterpack.backend.common.error.AppException;
 import com.starterpack.backend.config.AuthProperties;
 import com.starterpack.backend.modules.auth.application.port.AuthEmailSenderPort;
+import com.starterpack.backend.modules.auth.application.port.VerificationResendThrottlePort;
 import com.starterpack.backend.modules.auth.api.dto.ConfirmVerificationRequest;
 import com.starterpack.backend.modules.auth.api.dto.ForgotPasswordRequest;
 import com.starterpack.backend.modules.auth.api.dto.RequestVerificationRequest;
@@ -40,6 +41,7 @@ public class AuthVerificationService {
     private final AuthProperties authProperties;
     private final AuthTokenService authTokenService;
     private final AuthEmailSenderPort authEmailSenderPort;
+    private final VerificationResendThrottlePort verificationResendThrottlePort;
     private final Map<VerificationPurpose, VerificationPurposeHandler> purposeHandlers;
     private final Map<VerificationChannel, VerificationChannelTargetResolver> channelResolvers;
 
@@ -50,6 +52,7 @@ public class AuthVerificationService {
             AuthProperties authProperties,
             AuthTokenService authTokenService,
             AuthEmailSenderPort authEmailSenderPort,
+            VerificationResendThrottlePort verificationResendThrottlePort,
             List<VerificationPurposeHandler> purposeHandlers,
             List<VerificationChannelTargetResolver> channelResolvers
     ) {
@@ -59,8 +62,32 @@ public class AuthVerificationService {
         this.authProperties = authProperties;
         this.authTokenService = authTokenService;
         this.authEmailSenderPort = authEmailSenderPort;
+        this.verificationResendThrottlePort = verificationResendThrottlePort;
         this.purposeHandlers = indexPurposeHandlers(purposeHandlers);
         this.channelResolvers = indexChannelResolvers(channelResolvers);
+    }
+
+    public IssuedVerificationData resendVerification(User user, RequestVerificationRequest request) {
+        String cooldownKey = cooldownKey(user.getId().toString(), request.purpose(), request.channel());
+        boolean acquired = verificationResendThrottlePort.acquire(cooldownKey, authProperties.getVerification().getResendCooldown());
+        if (!acquired) {
+            throw AppException.badRequest("Verification already requested recently. Please wait before retrying.");
+        }
+        return requestVerification(user, request);
+    }
+
+    public IssuedVerificationData requestAccountDeletionVerification(User user) {
+        RequestVerificationRequest request = new RequestVerificationRequest(
+                VerificationPurpose.ACCOUNT_DELETION,
+                VerificationChannel.EMAIL,
+                user.getEmail()
+        );
+        String cooldownKey = cooldownKey(user.getId().toString(), request.purpose(), request.channel());
+        boolean acquired = verificationResendThrottlePort.acquire(cooldownKey, authProperties.getVerification().getResendCooldown());
+        if (!acquired) {
+            throw AppException.badRequest("Verification already requested recently. Please wait before retrying.");
+        }
+        return requestVerification(user, request);
     }
 
     public IssuedVerificationData requestVerification(User user, RequestVerificationRequest request) {
@@ -148,6 +175,16 @@ public class AuthVerificationService {
         return parseUuid(request.identifier(), "Invalid identifier");
     }
 
+    public void consumeAccountDeletionToken(UUID userId, String token) {
+        Verification verification = resolveVerification(
+                userId.toString(),
+                VerificationPurpose.ACCOUNT_DELETION,
+                VerificationChannel.EMAIL,
+                token
+        );
+        verification.setConsumedAt(OffsetDateTime.now());
+    }
+
     private Verification resolveVerification(
             String identifier,
             VerificationPurpose purpose,
@@ -225,6 +262,10 @@ public class AuthVerificationService {
                 .queryParam("token", token)
                 .build()
                 .toUriString();
+    }
+
+    private String cooldownKey(String identifier, VerificationPurpose purpose, VerificationChannel channel) {
+        return authProperties.getCache().getPrefix() + ":verify:cooldown:" + identifier + ":" + purpose.name() + ":" + channel.name();
     }
 
     public record IssuedVerificationData(Verification verification, String token) {

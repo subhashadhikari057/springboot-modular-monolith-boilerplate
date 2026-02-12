@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import com.starterpack.backend.common.error.AppException;
 import com.starterpack.backend.modules.auth.api.dto.ChangePasswordRequest;
+import com.starterpack.backend.modules.auth.api.dto.DeleteAccountConfirmRequest;
 import com.starterpack.backend.modules.auth.api.dto.ResetPasswordRequest;
 import com.starterpack.backend.modules.auth.api.dto.UpdateMyProfileRequest;
 import com.starterpack.backend.modules.auth.application.port.AuthSessionCachePort;
@@ -12,6 +13,7 @@ import com.starterpack.backend.modules.users.domain.User;
 import com.starterpack.backend.modules.users.infrastructure.AccountRepository;
 import com.starterpack.backend.modules.users.infrastructure.SessionRepository;
 import com.starterpack.backend.modules.users.infrastructure.UserRepository;
+import com.starterpack.backend.modules.users.infrastructure.VerificationRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +26,7 @@ public class AuthAccountService {
     private final UserRepository userRepository;
     private final AccountRepository accountRepository;
     private final SessionRepository sessionRepository;
+    private final VerificationRepository verificationRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthSessionCachePort authSessionCache;
     private final AuthVerificationService authVerificationService;
@@ -32,6 +35,7 @@ public class AuthAccountService {
             UserRepository userRepository,
             AccountRepository accountRepository,
             SessionRepository sessionRepository,
+            VerificationRepository verificationRepository,
             PasswordEncoder passwordEncoder,
             AuthSessionCachePort authSessionCache,
             AuthVerificationService authVerificationService
@@ -39,6 +43,7 @@ public class AuthAccountService {
         this.userRepository = userRepository;
         this.accountRepository = accountRepository;
         this.sessionRepository = sessionRepository;
+        this.verificationRepository = verificationRepository;
         this.passwordEncoder = passwordEncoder;
         this.authSessionCache = authSessionCache;
         this.authVerificationService = authVerificationService;
@@ -84,6 +89,17 @@ public class AuthAccountService {
         account.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         sessionRepository.deleteByUserId(user.getId());
         authSessionCache.evictAllUserSessions(user.getId());
+    }
+
+    public void deleteMyAccount(User user, DeleteAccountConfirmRequest request) {
+        User existing = userRepository.findById(user.getId())
+                .orElseThrow(() -> AppException.unauthorized("Unauthenticated"));
+
+        authVerificationService.consumeAccountDeletionToken(existing.getId(), request.token());
+        sessionRepository.deleteByUserId(existing.getId());
+        authSessionCache.evictAllUserSessions(existing.getId());
+        verificationRepository.deleteByIdentifier(existing.getId().toString());
+        userRepository.delete(existing);
     }
 
     private String trimToNull(String value) {
