@@ -25,6 +25,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -102,15 +103,22 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public PagedResponse<UserResponse> listUsers(int page, int size, String sortBy, Sort.Direction sortDirection) {
-        String listCacheKey = listCacheKey(page, size, sortBy, sortDirection);
+    public PagedResponse<UserResponse> listUsers(
+            int page,
+            int size,
+            String sortBy,
+            Sort.Direction sortDirection,
+            Integer roleId,
+            Boolean emailVerified
+    ) {
+        String listCacheKey = listCacheKey(page, size, sortBy, sortDirection, roleId, emailVerified);
         Optional<PagedResponse<UserResponse>> cached = userListCache.getList(listCacheKey);
         if (cached.isPresent()) {
             return cached.get();
         }
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, sortBy));
-        Page<User> users = userRepository.findAll(pageable);
+        Page<User> users = userRepository.findAll(buildUserFilter(roleId, emailVerified), pageable);
 
         List<UserResponse> items = users.getContent().stream()
                 .map(UserResponse::from)
@@ -153,7 +161,30 @@ public class UserService {
         userListCache.putList(listCacheKey, response, cacheProperties.getUsers().getListTtl());
     }
 
-    private String listCacheKey(int page, int size, String sortBy, Sort.Direction sortDirection) {
-        return "users:list:" + page + ":" + size + ":" + sortBy + ":" + sortDirection.name().toLowerCase();
+    private String listCacheKey(
+            int page,
+            int size,
+            String sortBy,
+            Sort.Direction sortDirection,
+            Integer roleId,
+            Boolean emailVerified
+    ) {
+        String rolePart = roleId == null ? "any-role" : "role-" + roleId;
+        String verifiedPart = emailVerified == null ? "any-verified" : "emailVerified-" + emailVerified;
+        return "users:list:" + page + ":" + size + ":" + sortBy + ":" + sortDirection.name().toLowerCase()
+                + ":" + rolePart + ":" + verifiedPart;
+    }
+
+    private Specification<User> buildUserFilter(Integer roleId, Boolean emailVerified) {
+        return (root, query, cb) -> {
+            java.util.List<jakarta.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
+            if (roleId != null) {
+                predicates.add(cb.equal(root.get("role").get("id"), roleId));
+            }
+            if (emailVerified != null) {
+                predicates.add(cb.equal(root.get("emailVerified"), emailVerified));
+            }
+            return cb.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
+        };
     }
 }
