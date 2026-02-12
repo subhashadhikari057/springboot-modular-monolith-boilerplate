@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 import java.util.Locale;
 import java.util.Optional;
 
+import com.starterpack.backend.common.error.AppException;
 import com.starterpack.backend.config.AuthProperties;
 import com.starterpack.backend.modules.auth.api.dto.LoginRequest;
 import com.starterpack.backend.modules.auth.api.dto.RegisterRequest;
@@ -16,11 +17,9 @@ import com.starterpack.backend.modules.users.infrastructure.AccountRepository;
 import com.starterpack.backend.modules.users.infrastructure.RoleRepository;
 import com.starterpack.backend.modules.users.infrastructure.SessionRepository;
 import com.starterpack.backend.modules.users.infrastructure.UserRepository;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Transactional
@@ -59,11 +58,11 @@ public class AuthAuthenticationService {
     public AuthSessionData register(RegisterRequest request, String ipAddress, String userAgent) {
         String email = normalizeEmail(request.email());
         userRepository.findByEmailIgnoreCase(email).ifPresent(existing -> {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already in use");
+            throw AppException.conflict("Email already in use");
         });
 
         Role defaultRole = roleRepository.findByNameIgnoreCase("USER")
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Default role USER not found"));
+                .orElseThrow(() -> AppException.badRequest("Default role USER not found"));
 
         User user = new User();
         user.setName(request.name().trim());
@@ -90,13 +89,13 @@ public class AuthAuthenticationService {
     public AuthSessionData login(LoginRequest request, String ipAddress, String userAgent) {
         String email = normalizeEmail(request.email());
         User user = userRepository.findByEmailIgnoreCase(email)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
+                .orElseThrow(() -> AppException.unauthorized("Invalid credentials"));
 
         Account account = accountRepository.findByProviderIdAndAccountId(LOCAL_PROVIDER, email)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
+                .orElseThrow(() -> AppException.unauthorized("Invalid credentials"));
 
         if (account.getPasswordHash() == null || !passwordEncoder.matches(request.password(), account.getPasswordHash())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+            throw AppException.unauthorized("Invalid credentials");
         }
 
         Session session = createSession(user, ipAddress, userAgent);
@@ -124,17 +123,17 @@ public class AuthAuthenticationService {
 
     public AuthSessionData refreshSessionByRefreshToken(String refreshToken, String ipAddress, String userAgent) {
         if (refreshToken == null || refreshToken.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token is missing");
+            throw AppException.unauthorized("Refresh token is missing");
         }
         Optional<Session> cachedSession = authSessionCache.findByRefreshToken(refreshToken)
                 .flatMap(cachedRef -> sessionRepository.findByIdWithUserAndPermissions(cachedRef.sessionId()));
 
         Session existingSession = cachedSession.or(() -> sessionRepository.findByRefreshTokenAndRefreshExpiresAtAfter(refreshToken, OffsetDateTime.now()))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token is invalid or expired"));
+                .orElseThrow(() -> AppException.unauthorized("Refresh token is invalid or expired"));
 
         if (!refreshToken.equals(existingSession.getRefreshToken()) || existingSession.getRefreshExpiresAt().isBefore(OffsetDateTime.now())) {
             authSessionCache.evictSession(existingSession.getToken(), existingSession.getRefreshToken(), existingSession.getUser().getId());
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token is invalid or expired");
+            throw AppException.unauthorized("Refresh token is invalid or expired");
         }
 
         User user = existingSession.getUser();

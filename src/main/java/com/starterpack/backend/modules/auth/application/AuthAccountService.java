@@ -2,6 +2,7 @@ package com.starterpack.backend.modules.auth.application;
 
 import java.util.UUID;
 
+import com.starterpack.backend.common.error.AppException;
 import com.starterpack.backend.modules.auth.api.dto.ChangePasswordRequest;
 import com.starterpack.backend.modules.auth.api.dto.ResetPasswordRequest;
 import com.starterpack.backend.modules.auth.api.dto.UpdateMyProfileRequest;
@@ -11,11 +12,9 @@ import com.starterpack.backend.modules.users.domain.User;
 import com.starterpack.backend.modules.users.infrastructure.AccountRepository;
 import com.starterpack.backend.modules.users.infrastructure.SessionRepository;
 import com.starterpack.backend.modules.users.infrastructure.UserRepository;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Transactional
@@ -48,12 +47,12 @@ public class AuthAccountService {
     @Transactional(readOnly = true)
     public User getCurrentUser(UUID userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthenticated"));
+                .orElseThrow(() -> AppException.unauthorized("Unauthenticated"));
     }
 
     public User updateMyProfile(User currentUser, UpdateMyProfileRequest request) {
         User user = userRepository.findById(currentUser.getId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthenticated"));
+                .orElseThrow(() -> AppException.unauthorized("Unauthenticated"));
 
         user.setName(request.name().trim());
         user.setPhone(trimToNull(request.phone()));
@@ -63,10 +62,10 @@ public class AuthAccountService {
 
     public void changePassword(User user, ChangePasswordRequest request) {
         Account account = accountRepository.findByUserIdAndProviderId(user.getId(), LOCAL_PROVIDER)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Local account not found"));
+                .orElseThrow(() -> AppException.badRequest("Local account not found"));
 
         if (account.getPasswordHash() == null || !passwordEncoder.matches(request.currentPassword(), account.getPasswordHash())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Current password is incorrect");
+            throw AppException.badRequest("Current password is incorrect");
         }
 
         account.setPasswordHash(passwordEncoder.encode(request.newPassword()));
@@ -77,10 +76,10 @@ public class AuthAccountService {
     public void resetPassword(ResetPasswordRequest request) {
         UUID userId = authVerificationService.consumePasswordResetToken(request);
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid identifier"));
+                .orElseThrow(() -> AppException.badRequest("Invalid identifier"));
 
         Account account = accountRepository.findByUserIdAndProviderId(user.getId(), LOCAL_PROVIDER)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Local account not found"));
+                .orElseThrow(() -> AppException.badRequest("Local account not found"));
 
         account.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         sessionRepository.deleteByUserId(user.getId());

@@ -5,6 +5,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.starterpack.backend.common.error.AppException;
 import com.starterpack.backend.config.AuthProperties;
 import com.starterpack.backend.modules.auth.api.dto.ConfirmVerificationRequest;
 import com.starterpack.backend.modules.auth.api.dto.ForgotPasswordRequest;
@@ -18,10 +19,8 @@ import com.starterpack.backend.modules.users.domain.VerificationPurpose;
 import com.starterpack.backend.modules.users.infrastructure.AccountRepository;
 import com.starterpack.backend.modules.users.infrastructure.UserRepository;
 import com.starterpack.backend.modules.users.infrastructure.VerificationRepository;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Transactional
@@ -130,24 +129,24 @@ public class AuthVerificationService {
                         authTokenService.hashToken(plainToken),
                         OffsetDateTime.now()
                 )
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired token"));
+                .orElseThrow(() -> AppException.badRequest("Invalid or expired token"));
     }
 
     private void applyVerificationEffect(Verification verification) {
         UUID userId = parseUuid(verification.getIdentifier(), "Invalid verification identifier");
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid verification identifier"));
+                .orElseThrow(() -> AppException.badRequest("Invalid verification identifier"));
 
         if (verification.getPurpose() == VerificationPurpose.EMAIL_VERIFICATION) {
             if (!user.getEmail().equalsIgnoreCase(verification.getTarget())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Verification target does not match current email");
+                throw AppException.badRequest("Verification target does not match current email");
             }
             user.setEmailVerified(true);
         }
 
         if (verification.getPurpose() == VerificationPurpose.PHONE_VERIFICATION) {
             if (user.getPhone() == null || !user.getPhone().equals(verification.getTarget())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Verification target does not match current phone");
+                throw AppException.badRequest("Verification target does not match current phone");
             }
             user.setPhoneVerified(true);
         }
@@ -163,7 +162,7 @@ public class AuthVerificationService {
         }
 
         if (user.getPhone() == null || user.getPhone().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone target is required");
+            throw AppException.badRequest("Phone target is required");
         }
         return user.getPhone();
     }
@@ -172,7 +171,7 @@ public class AuthVerificationService {
         try {
             return UUID.fromString(value);
         } catch (IllegalArgumentException ex) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
+            throw AppException.badRequest(message);
         }
     }
 

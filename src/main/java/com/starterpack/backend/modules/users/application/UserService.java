@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
+import com.starterpack.backend.common.error.AppException;
 import com.starterpack.backend.common.web.PageMeta;
 import com.starterpack.backend.common.web.PagedResponse;
 import com.starterpack.backend.config.CacheProperties;
@@ -25,11 +26,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Transactional
@@ -74,7 +73,7 @@ public class UserService {
     public User createUser(CreateUserRequest request) {
         String email = request.email().trim().toLowerCase(Locale.ROOT);
         userRepository.findByEmailIgnoreCase(email).ifPresent(existing -> {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already in use");
+            throw AppException.conflict("Email already in use");
         });
 
         Role role = resolveRole(request.roleId());
@@ -103,7 +102,7 @@ public class UserService {
     @Transactional(readOnly = true)
     public User getUser(UUID id) {
         return userRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> AppException.notFound("User not found"));
     }
 
     @Transactional(readOnly = true)
@@ -136,7 +135,7 @@ public class UserService {
     public User updateUserRole(UUID userId, Integer roleId) {
         User user = getUser(userId);
         Role role = roleRepository.findById(roleId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found"));
+                .orElseThrow(() -> AppException.notFound("Role not found"));
         user.setRole(role);
         sessionRepository.deleteByUserId(user.getId());
         authSessionCache.evictAllUserSessions(user.getId());
@@ -154,14 +153,11 @@ public class UserService {
     private Role resolveRole(Integer roleId) {
         if (roleId != null) {
             return roleRepository.findById(roleId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found"));
+                    .orElseThrow(() -> AppException.notFound("Role not found"));
         }
 
         return roleRepository.findByNameIgnoreCase("USER")
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "Default role USER not found"
-                ));
+                .orElseThrow(() -> AppException.badRequest("Default role USER not found"));
     }
 
     private void cacheUserList(String listCacheKey, PagedResponse<UserResponse> response) {
