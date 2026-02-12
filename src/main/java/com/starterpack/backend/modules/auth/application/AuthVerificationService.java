@@ -1,7 +1,10 @@
 package com.starterpack.backend.modules.auth.application;
 
 import java.time.OffsetDateTime;
+import java.util.EnumMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -11,6 +14,8 @@ import com.starterpack.backend.modules.auth.api.dto.ConfirmVerificationRequest;
 import com.starterpack.backend.modules.auth.api.dto.ForgotPasswordRequest;
 import com.starterpack.backend.modules.auth.api.dto.RequestVerificationRequest;
 import com.starterpack.backend.modules.auth.api.dto.ResetPasswordRequest;
+import com.starterpack.backend.modules.auth.application.verification.VerificationChannelTargetResolver;
+import com.starterpack.backend.modules.auth.application.verification.VerificationPurposeHandler;
 import com.starterpack.backend.modules.users.domain.Account;
 import com.starterpack.backend.modules.users.domain.User;
 import com.starterpack.backend.modules.users.domain.Verification;
@@ -32,19 +37,25 @@ public class AuthVerificationService {
     private final AccountRepository accountRepository;
     private final AuthProperties authProperties;
     private final AuthTokenService authTokenService;
+    private final Map<VerificationPurpose, VerificationPurposeHandler> purposeHandlers;
+    private final Map<VerificationChannel, VerificationChannelTargetResolver> channelResolvers;
 
     public AuthVerificationService(
             VerificationRepository verificationRepository,
             UserRepository userRepository,
             AccountRepository accountRepository,
             AuthProperties authProperties,
-            AuthTokenService authTokenService
+            AuthTokenService authTokenService,
+            List<VerificationPurposeHandler> purposeHandlers,
+            List<VerificationChannelTargetResolver> channelResolvers
     ) {
         this.verificationRepository = verificationRepository;
         this.userRepository = userRepository;
         this.accountRepository = accountRepository;
         this.authProperties = authProperties;
         this.authTokenService = authTokenService;
+        this.purposeHandlers = indexPurposeHandlers(purposeHandlers);
+        this.channelResolvers = indexChannelResolvers(channelResolvers);
     }
 
     public IssuedVerificationData requestVerification(User user, RequestVerificationRequest request) {
@@ -136,35 +147,33 @@ public class AuthVerificationService {
         UUID userId = parseUuid(verification.getIdentifier(), "Invalid verification identifier");
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> AppException.badRequest("Invalid verification identifier"));
-
-        if (verification.getPurpose() == VerificationPurpose.EMAIL_VERIFICATION) {
-            if (!user.getEmail().equalsIgnoreCase(verification.getTarget())) {
-                throw AppException.badRequest("Verification target does not match current email");
-            }
-            user.setEmailVerified(true);
+        VerificationPurposeHandler handler = purposeHandlers.get(verification.getPurpose());
+        if (handler == null) {
+            throw AppException.badRequest("Unsupported verification purpose");
         }
-
-        if (verification.getPurpose() == VerificationPurpose.PHONE_VERIFICATION) {
-            if (user.getPhone() == null || !user.getPhone().equals(verification.getTarget())) {
-                throw AppException.badRequest("Verification target does not match current phone");
-            }
-            user.setPhoneVerified(true);
-        }
+        handler.apply(user, verification);
     }
 
     private String resolveTarget(User user, VerificationChannel channel, String target) {
-        if (target != null && !target.isBlank()) {
-            return target.trim();
+        VerificationChannelTargetResolver resolver = channelResolvers.get(channel);
+        if (resolver == null) {
+            throw AppException.badRequest("Unsupported verification channel");
         }
+        return resolver.resolveTarget(user, target);
+    }
 
-        if (channel == VerificationChannel.EMAIL) {
-            return user.getEmail();
-        }
+    private Map<VerificationPurpose, VerificationPurposeHandler> indexPurposeHandlers(List<VerificationPurposeHandler> handlers) {
+        Map<VerificationPurpose, VerificationPurposeHandler> byPurpose = new EnumMap<>(VerificationPurpose.class);
+        handlers.forEach(handler -> byPurpose.put(handler.purpose(), handler));
+        return byPurpose;
+    }
 
-        if (user.getPhone() == null || user.getPhone().isBlank()) {
-            throw AppException.badRequest("Phone target is required");
-        }
-        return user.getPhone();
+    private Map<VerificationChannel, VerificationChannelTargetResolver> indexChannelResolvers(
+            List<VerificationChannelTargetResolver> resolvers
+    ) {
+        Map<VerificationChannel, VerificationChannelTargetResolver> byChannel = new EnumMap<>(VerificationChannel.class);
+        resolvers.forEach(resolver -> byChannel.put(resolver.channel(), resolver));
+        return byChannel;
     }
 
     private UUID parseUuid(String value, String message) {
