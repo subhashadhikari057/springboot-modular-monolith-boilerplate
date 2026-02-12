@@ -2,34 +2,33 @@ package com.starterpack.backend.modules.users.application;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 
+import com.starterpack.backend.common.error.AppException;
 import com.starterpack.backend.common.web.PageMeta;
 import com.starterpack.backend.common.web.PagedResponse;
 import com.starterpack.backend.config.CacheProperties;
-import com.starterpack.backend.modules.auth.infrastructure.AuthSessionCache;
+import com.starterpack.backend.modules.auth.application.port.AuthSessionCachePort;
 import com.starterpack.backend.modules.users.api.dto.CreateUserRequest;
 import com.starterpack.backend.modules.users.api.dto.UserResponse;
+import com.starterpack.backend.modules.users.application.port.UserListCachePort;
 import com.starterpack.backend.modules.users.domain.Account;
 import com.starterpack.backend.modules.users.domain.Role;
 import com.starterpack.backend.modules.users.domain.User;
 import com.starterpack.backend.modules.users.infrastructure.AccountRepository;
 import com.starterpack.backend.modules.users.infrastructure.RoleRepository;
 import com.starterpack.backend.modules.users.infrastructure.SessionRepository;
-import com.starterpack.backend.modules.users.infrastructure.UserCache;
 import com.starterpack.backend.modules.users.infrastructure.UserRepository;
 import com.starterpack.backend.modules.users.infrastructure.VerificationRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpStatus;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Transactional
@@ -41,11 +40,10 @@ public class UserService {
     private final AccountRepository accountRepository;
     private final VerificationRepository verificationRepository;
     private final PasswordEncoder passwordEncoder;
-    private final UserCache userCache;
+    private final UserListCachePort userListCache;
     private final SessionRepository sessionRepository;
-    private final AuthSessionCache authSessionCache;
+    private final AuthSessionCachePort authSessionCache;
     private final CacheProperties cacheProperties;
-    private final ObjectMapper objectMapper;
 
     public UserService(
             UserRepository userRepository,
@@ -53,28 +51,26 @@ public class UserService {
             AccountRepository accountRepository,
             VerificationRepository verificationRepository,
             PasswordEncoder passwordEncoder,
-            UserCache userCache,
+            UserListCachePort userListCache,
             SessionRepository sessionRepository,
-            AuthSessionCache authSessionCache,
-            CacheProperties cacheProperties,
-            ObjectMapper objectMapper
+            AuthSessionCachePort authSessionCache,
+            CacheProperties cacheProperties
     ) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.accountRepository = accountRepository;
         this.verificationRepository = verificationRepository;
         this.passwordEncoder = passwordEncoder;
-        this.userCache = userCache;
+        this.userListCache = userListCache;
         this.sessionRepository = sessionRepository;
         this.authSessionCache = authSessionCache;
         this.cacheProperties = cacheProperties;
-        this.objectMapper = objectMapper;
     }
 
     public User createUser(CreateUserRequest request) {
         String email = request.email().trim().toLowerCase(Locale.ROOT);
         userRepository.findByEmailIgnoreCase(email).ifPresent(existing -> {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already in use");
+            throw AppException.conflict("Email already in use");
         });
 
         Role role = resolveRole(request.roleId());
@@ -96,33 +92,33 @@ public class UserService {
         account.setPasswordHash(passwordEncoder.encode(request.password()));
         accountRepository.save(account);
 
-        userCache.invalidateLists();
+        userListCache.invalidateLists();
         return user;
     }
 
     @Transactional(readOnly = true)
     public User getUser(UUID id) {
         return userRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> AppException.notFound("User not found"));
     }
 
     @Transactional(readOnly = true)
-    public PagedResponse<UserResponse> listUsers(int page, int size, String sortBy, Sort.Direction sortDirection) {
-        String listCacheKey = listCacheKey(page, size, sortBy, sortDirection);
-        String cached = userCache.getList(listCacheKey);
-        if (cached != null) {
-            userCache.logHit(listCacheKey);
-            PagedResponse<UserResponse> response = readPagedUserResponse(cached);
-            if (response != null) {
-                return response;
-            }
-            userCache.invalidateLists();
+    public PagedResponse<UserResponse> listUsers(
+            int page,
+            int size,
+            String sortBy,
+            Sort.Direction sortDirection,
+            Integer roleId,
+            Boolean emailVerified
+    ) {
+        String listCacheKey = listCacheKey(page, size, sortBy, sortDirection, roleId, emailVerified);
+        Optional<PagedResponse<UserResponse>> cached = userListCache.getList(listCacheKey);
+        if (cached.isPresent()) {
+            return cached.get();
         }
 
-        userCache.logMiss(listCacheKey);
-
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, sortBy));
-        Page<User> users = userRepository.findAll(pageable);
+        Page<User> users = userRepository.findAll(buildUserFilter(roleId, emailVerified), pageable);
 
         List<UserResponse> items = users.getContent().stream()
                 .map(UserResponse::from)
@@ -136,55 +132,59 @@ public class UserService {
     public User updateUserRole(UUID userId, Integer roleId) {
         User user = getUser(userId);
         Role role = roleRepository.findById(roleId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found"));
+                .orElseThrow(() -> AppException.notFound("Role not found"));
         user.setRole(role);
         sessionRepository.deleteByUserId(user.getId());
         authSessionCache.evictAllUserSessions(user.getId());
-        userCache.invalidateLists();
+        userListCache.invalidateLists();
         return user;
     }
 
     public void deleteUser(UUID userId) {
         User user = getUser(userId);
         verificationRepository.deleteByIdentifier(user.getId().toString());
-        userCache.invalidateLists();
+        userListCache.invalidateLists();
         userRepository.delete(user);
     }
 
     private Role resolveRole(Integer roleId) {
         if (roleId != null) {
             return roleRepository.findById(roleId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found"));
+                    .orElseThrow(() -> AppException.notFound("Role not found"));
         }
 
         return roleRepository.findByNameIgnoreCase("USER")
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "Default role USER not found"
-                ));
+                .orElseThrow(() -> AppException.badRequest("Default role USER not found"));
     }
 
     private void cacheUserList(String listCacheKey, PagedResponse<UserResponse> response) {
-        try {
-            String json = objectMapper.writeValueAsString(response);
-            userCache.putList(listCacheKey, json, cacheProperties.getUsers().getListTtl());
-        } catch (JsonProcessingException ignored) {
-            // Cache failures should not affect request flow.
-        }
+        userListCache.putList(listCacheKey, response, cacheProperties.getUsers().getListTtl());
     }
 
-    private PagedResponse<UserResponse> readPagedUserResponse(String cached) {
-        try {
-            return objectMapper.readValue(
-                    cached,
-                    objectMapper.getTypeFactory().constructParametricType(PagedResponse.class, UserResponse.class)
-            );
-        } catch (JsonProcessingException ignored) {
-            return null;
-        }
+    private String listCacheKey(
+            int page,
+            int size,
+            String sortBy,
+            Sort.Direction sortDirection,
+            Integer roleId,
+            Boolean emailVerified
+    ) {
+        String rolePart = roleId == null ? "any-role" : "role-" + roleId;
+        String verifiedPart = emailVerified == null ? "any-verified" : "emailVerified-" + emailVerified;
+        return "users:list:" + page + ":" + size + ":" + sortBy + ":" + sortDirection.name().toLowerCase()
+                + ":" + rolePart + ":" + verifiedPart;
     }
 
-    private String listCacheKey(int page, int size, String sortBy, Sort.Direction sortDirection) {
-        return "users:list:" + page + ":" + size + ":" + sortBy + ":" + sortDirection.name().toLowerCase();
+    private Specification<User> buildUserFilter(Integer roleId, Boolean emailVerified) {
+        return (root, query, cb) -> {
+            java.util.List<jakarta.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
+            if (roleId != null) {
+                predicates.add(cb.equal(root.get("role").get("id"), roleId));
+            }
+            if (emailVerified != null) {
+                predicates.add(cb.equal(root.get("emailVerified"), emailVerified));
+            }
+            return cb.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
+        };
     }
 }

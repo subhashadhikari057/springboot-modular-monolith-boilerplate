@@ -5,6 +5,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 
+import com.starterpack.backend.common.error.AppException;
 import com.starterpack.backend.common.web.PageMeta;
 import com.starterpack.backend.common.web.PagedResponse;
 import com.starterpack.backend.config.UploadProperties;
@@ -16,11 +17,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Transactional
@@ -59,7 +58,7 @@ public class UploadService {
 
     public List<UploadResponse> uploadMany(List<MultipartFile> files, UUID uploadedBy, String folder) {
         if (files == null || files.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "files must not be empty");
+            throw AppException.badRequest("files must not be empty");
         }
 
         return files.stream()
@@ -78,13 +77,13 @@ public class UploadService {
     @Transactional(readOnly = true)
     public UploadResponse getById(UUID id) {
         UploadMedia media = uploadMediaRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Upload not found"));
+                .orElseThrow(() -> AppException.notFound("Upload not found"));
         return UploadResponse.from(media);
     }
 
     public void delete(UUID id) {
         UploadMedia media = uploadMediaRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Upload not found"));
+                .orElseThrow(() -> AppException.notFound("Upload not found"));
 
         mediaStorage.delete(media.getStoragePath());
         uploadMediaRepository.delete(media);
@@ -92,11 +91,11 @@ public class UploadService {
 
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file must not be empty");
+            throw AppException.badRequest("file must not be empty");
         }
 
         if (file.getSize() > uploadProperties.getMaxFileSizeBytes()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file exceeds max allowed size");
+            throw AppException.badRequest("file exceeds max allowed size");
         }
 
         List<String> allow = uploadProperties.getAllowedContentTypes();
@@ -108,7 +107,7 @@ public class UploadService {
         Set<String> normalized = allow.stream().map(v -> v.toLowerCase(Locale.ROOT)).collect(java.util.stream.Collectors.toSet());
 
         if (!normalized.contains(contentType)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported content type");
+            throw AppException.badRequest("unsupported content type");
         }
     }
 

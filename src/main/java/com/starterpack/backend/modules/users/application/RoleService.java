@@ -6,7 +6,8 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 
-import com.starterpack.backend.modules.auth.infrastructure.AuthSessionCache;
+import com.starterpack.backend.common.error.AppException;
+import com.starterpack.backend.modules.auth.application.port.AuthSessionCachePort;
 import com.starterpack.backend.modules.users.api.dto.CreateRoleRequest;
 import com.starterpack.backend.modules.users.domain.Permission;
 import com.starterpack.backend.modules.users.domain.Role;
@@ -14,10 +15,8 @@ import com.starterpack.backend.modules.users.infrastructure.PermissionRepository
 import com.starterpack.backend.modules.users.infrastructure.RoleRepository;
 import com.starterpack.backend.modules.users.infrastructure.SessionRepository;
 import com.starterpack.backend.modules.users.infrastructure.UserRepository;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Transactional
@@ -26,14 +25,14 @@ public class RoleService {
     private final PermissionRepository permissionRepository;
     private final UserRepository userRepository;
     private final SessionRepository sessionRepository;
-    private final AuthSessionCache authSessionCache;
+    private final AuthSessionCachePort authSessionCache;
 
     public RoleService(
             RoleRepository roleRepository,
             PermissionRepository permissionRepository,
             UserRepository userRepository,
             SessionRepository sessionRepository,
-            AuthSessionCache authSessionCache
+            AuthSessionCachePort authSessionCache
     ) {
         this.roleRepository = roleRepository;
         this.permissionRepository = permissionRepository;
@@ -45,7 +44,7 @@ public class RoleService {
     public Role createRole(CreateRoleRequest request) {
         String name = request.name().trim().toUpperCase(Locale.ROOT);
         roleRepository.findByNameIgnoreCase(name).ifPresent(existing -> {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Role already exists");
+            throw AppException.conflict("Role already exists");
         });
 
         Role role = new Role();
@@ -61,11 +60,11 @@ public class RoleService {
 
     public Role updateRolePermissions(Integer roleId, Set<Integer> permissionIds) {
         Role role = roleRepository.findById(roleId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found"));
+                .orElseThrow(() -> AppException.notFound("Role not found"));
 
         List<Permission> permissions = permissionRepository.findAllById(permissionIds);
         if (permissions.size() != permissionIds.size()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "One or more permissions not found");
+            throw AppException.notFound("One or more permissions not found");
         }
 
         role.setPermissions(new HashSet<>(permissions));

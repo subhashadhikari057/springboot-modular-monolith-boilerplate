@@ -88,7 +88,9 @@ public class UserController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
-            @RequestParam(defaultValue = "desc") String sortDir
+            @RequestParam(defaultValue = "desc") String sortDir,
+            @RequestParam(required = false) Integer roleId,
+            @RequestParam(required = false) Boolean emailVerified
     ) {
         if (page < 1) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "page must be >= 1");
@@ -99,7 +101,7 @@ public class UserController {
 
         String resolvedSortBy = resolveSortBy(sortBy);
         Sort.Direction direction = parseDirection(sortDir);
-        return userService.listUsers(page - 1, size, resolvedSortBy, direction);
+        return userService.listUsers(page - 1, size, resolvedSortBy, direction, roleId, emailVerified);
     }
 
     private String resolveSortBy(String sortBy) {
