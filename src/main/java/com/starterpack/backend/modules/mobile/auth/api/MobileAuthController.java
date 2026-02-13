@@ -1,11 +1,12 @@
-package com.starterpack.backend.modules.auth.api;
+package com.starterpack.backend.modules.mobile.auth.api;
 
-import java.util.List;
 import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 
 import com.starterpack.backend.config.AuthProperties;
 import com.starterpack.backend.modules.auth.api.dto.AuthResponse;
+import com.starterpack.backend.modules.auth.api.dto.AuthSessionInfoResponse;
 import com.starterpack.backend.modules.auth.api.dto.ChangePasswordRequest;
 import com.starterpack.backend.modules.auth.api.dto.ConfirmVerificationRequest;
 import com.starterpack.backend.modules.auth.api.dto.DeleteAccountConfirmRequest;
@@ -19,7 +20,6 @@ import com.starterpack.backend.modules.auth.api.dto.RequestVerificationRequest;
 import com.starterpack.backend.modules.auth.api.dto.ResetPasswordRequest;
 import com.starterpack.backend.modules.auth.api.dto.UpdateMyProfileRequest;
 import com.starterpack.backend.modules.auth.api.dto.VerificationIssuedResponse;
-import com.starterpack.backend.modules.auth.api.dto.AuthSessionInfoResponse;
 import com.starterpack.backend.modules.auth.application.AuthCookieService;
 import com.starterpack.backend.modules.auth.application.AuthService;
 import com.starterpack.backend.modules.auth.application.AuthService.AuthSession;
@@ -39,26 +39,26 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
-@RequestMapping("/api/auth")
-@Tag(name = "Auth", description = "Authentication, sessions, verification, and password recovery")
+@RequestMapping("/api/mobile/auth")
+@Tag(name = "Auth", description = "Authentication and account flows")
 @Validated
-public class AuthController {
+public class MobileAuthController {
     private final AuthService authService;
     private final AuthCookieService authCookieService;
     private final AuthProperties authProperties;
 
-    public AuthController(AuthService authService, AuthCookieService authCookieService, AuthProperties authProperties) {
+    public MobileAuthController(AuthService authService, AuthCookieService authCookieService, AuthProperties authProperties) {
         this.authService = authService;
         this.authCookieService = authCookieService;
         this.authProperties = authProperties;
@@ -273,6 +273,49 @@ public class AuthController {
         return VerificationIssuedResponse.from(issued.verification(), token);
     }
 
+    @Operation(summary = "Confirm verification", description = "Confirms email/phone/password-reset verification token.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Verification confirmed",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = MessageResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid or expired token", content = @Content)
+    })
+    @PostMapping("/verify/confirm")
+    public MessageResponse confirmVerification(@Valid @RequestBody ConfirmVerificationRequest request) {
+        authService.confirmVerification(request);
+        return new MessageResponse("verified");
+    }
+
+    @Operation(summary = "Forgot password", description = "Creates password reset verification for local account.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Request accepted",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ForgotPasswordResponse.class)))
+    })
+    @PostMapping("/password/forgot")
+    public ForgotPasswordResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        return authService.forgotPassword(request)
+                .map(issued -> new ForgotPasswordResponse(
+                        "If the account exists, reset instructions have been issued",
+                        issued.verification().getIdentifier(),
+                        authProperties.getVerification().isExposeTokenInResponse() ? issued.token() : null
+                ))
+                .orElseGet(ForgotPasswordResponse::generic);
+    }
+
+    @Operation(summary = "Reset password", description = "Resets local account password using verification token.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Password reset",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = MessageResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid or expired token", content = @Content)
+    })
+    @PostMapping("/password/reset")
+    public MessageResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        return new MessageResponse("password_reset");
+    }
+
     @Operation(summary = "Re-authenticate", description = "Validates current password for sensitive operations.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Re-authenticated",
@@ -323,49 +366,6 @@ public class AuthController {
         authCookieService.clearSessionCookie(headers);
         authCookieService.clearRefreshCookie(headers);
         return ResponseEntity.ok().headers(headers).body(new MessageResponse("account_deleted"));
-    }
-
-    @Operation(summary = "Confirm verification", description = "Confirms email/phone/password-reset verification token.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Verification confirmed",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = MessageResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid or expired token", content = @Content)
-    })
-    @PostMapping("/verify/confirm")
-    public MessageResponse confirmVerification(@Valid @RequestBody ConfirmVerificationRequest request) {
-        authService.confirmVerification(request);
-        return new MessageResponse("verified");
-    }
-
-    @Operation(summary = "Forgot password", description = "Creates password reset verification for local account.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Request accepted",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ForgotPasswordResponse.class)))
-    })
-    @PostMapping("/password/forgot")
-    public ForgotPasswordResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
-        return authService.forgotPassword(request)
-                .map(issued -> new ForgotPasswordResponse(
-                        "If the account exists, reset instructions have been issued",
-                        issued.verification().getIdentifier(),
-                        authProperties.getVerification().isExposeTokenInResponse() ? issued.token() : null
-                ))
-                .orElseGet(ForgotPasswordResponse::generic);
-    }
-
-    @Operation(summary = "Reset password", description = "Resets local account password using verification token.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Password reset",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = MessageResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid or expired token", content = @Content)
-    })
-    @PostMapping("/password/reset")
-    public MessageResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
-        authService.resetPassword(request);
-        return new MessageResponse("password_reset");
     }
 
     private ResponseEntity<AuthResponse> withSessionCookie(AuthSession session, HttpStatus status) {

@@ -32,16 +32,17 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/health",
-                                "/openapi.json",
-                                "/docs",
-                                "/docs/**",
+                                "/api-docs",
+                                "/api-docs/**",
+                                "/openapi",
+                                "/openapi/**",
                                 "/webjars/**",
-                                "/api/auth/login",
-                                "/api/auth/register",
-                                "/api/auth/refresh",
-                                "/api/auth/verify/confirm",
-                                "/api/auth/password/forgot",
-                                "/api/auth/password/reset"
+                                "/api/mobile/auth/login",
+                                "/api/mobile/auth/register",
+                                "/api/mobile/auth/refresh",
+                                "/api/mobile/auth/verify/confirm",
+                                "/api/mobile/auth/password/forgot",
+                                "/api/mobile/auth/password/reset"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

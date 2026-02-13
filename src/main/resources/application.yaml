@@ -36,7 +36,7 @@ server:
 
 springdoc:
   api-docs:
-    path: /openapi.json
+    path: /openapi
   swagger-ui:
     enabled: false
   paths-to-exclude:
@@ -44,9 +44,9 @@ springdoc:
     - /docs/**
 
 scalar:
-  enabled: true
+  enabled: false
   path: /docs
-  url: /openapi.json
+  url: /openapi/mobile
 
 auth:
   cookie:

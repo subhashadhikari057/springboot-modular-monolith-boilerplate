@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/permissions")
+@RequestMapping("/api/admin/permissions")
 @Tag(name = "Permissions", description = "Permission catalog and RBAC capabilities")
 @Validated
 public class PermissionController {
@@ -42,7 +42,7 @@ public class PermissionController {
             @ApiResponse(responseCode = "409", description = "Permission already exists", content = @Content)
     })
     @PostMapping
-    @PreAuthorize("hasAuthority('permission:create')")
+    @PreAuthorize("hasAuthority('permissions:create')")
     public ResponseEntity<PermissionResponse> createPermission(@Valid @RequestBody CreatePermissionRequest request) {
         Permission permission = permissionService.createPermission(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(PermissionResponse.from(permission));
@@ -55,7 +55,7 @@ public class PermissionController {
                             schema = @Schema(implementation = PermissionResponse.class)))
     })
     @GetMapping
-    @PreAuthorize("hasAuthority('permission:read')")
+    @PreAuthorize("hasAuthority('permissions:read')")
     public List<PermissionResponse> listPermissions() {
         return permissionService.listPermissions().stream().map(PermissionResponse::from).toList();
     }

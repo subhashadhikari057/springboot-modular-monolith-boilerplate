@@ -7,8 +7,8 @@ import com.starterpack.backend.common.web.PagedResponse;
 import com.starterpack.backend.modules.auth.api.dto.MessageResponse;
 import com.starterpack.backend.modules.users.api.dto.CreateUserRequest;
 import com.starterpack.backend.modules.users.api.dto.UpdateUserRequest;
-import com.starterpack.backend.modules.users.api.dto.UpdateUserStatusRequest;
 import com.starterpack.backend.modules.users.api.dto.UpdateUserRoleRequest;
+import com.starterpack.backend.modules.users.api.dto.UpdateUserStatusRequest;
 import com.starterpack.backend.modules.users.api.dto.UserPermissionsResponse;
 import com.starterpack.backend.modules.users.api.dto.UserResponse;
 import com.starterpack.backend.modules.users.application.UserService;
@@ -25,9 +25,10 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -35,18 +36,16 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
-@RequestMapping("/api/users")
-@Tag(name = "Users", description = "User management, listing, and role assignment")
+@RequestMapping("/api/admin/users")
+@Tag(name = "Users Management", description = "Administrative user management")
 @Validated
-public class UserController {
+public class AdminUserController {
     private final UserService userService;
 
-    public UserController(UserService userService) {
+    public AdminUserController(UserService userService) {
         this.userService = userService;
     }
 
@@ -59,10 +58,10 @@ public class UserController {
             @ApiResponse(responseCode = "409", description = "Email already exists", content = @Content)
     })
     @PostMapping
-    @PreAuthorize("hasAuthority('user:create')")
+    @PreAuthorize("hasAuthority('users:create')")
     public ResponseEntity<UserResponse> createUser(@Valid @RequestBody CreateUserRequest request) {
         User user = userService.createUser(request);
-        URI location = URI.create("/api/users/" + user.getId());
+        URI location = URI.create("/api/admin/users/" + user.getId());
         return ResponseEntity.created(location).body(UserResponse.from(user));
     }
 
@@ -74,7 +73,7 @@ public class UserController {
             @ApiResponse(responseCode = "404", description = "User not found", content = @Content)
     })
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('user:read')")
+    @PreAuthorize("hasAuthority('users:read')")
     public UserResponse getUser(
             @Parameter(description = "User id", example = "6cfb19a7-71a3-46a8-b1d8-3de77bcd9b61")
             @PathVariable UUID id
@@ -82,14 +81,14 @@ public class UserController {
         return UserResponse.from(userService.getUser(id));
     }
 
-    @Operation(summary = "List users", description = "Returns all users.")
+    @Operation(summary = "List users", description = "Returns users with pagination/filtering.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Users list",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = UserResponse.class)))
     })
     @GetMapping
-    @PreAuthorize("hasAuthority('user:read')")
+    @PreAuthorize("hasAuthority('users:read')")
     public PagedResponse<UserResponse> listUsers(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -111,24 +110,6 @@ public class UserController {
         return userService.listUsers(page - 1, size, resolvedSortBy, direction, q, roleId, emailVerified);
     }
 
-    private String resolveSortBy(String sortBy) {
-        return switch (sortBy) {
-            case "id", "name", "email", "createdAt", "updatedAt" -> sortBy;
-            default -> throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Unsupported sortBy. Allowed: id,name,email,createdAt,updatedAt"
-            );
-        };
-    }
-
-    private Sort.Direction parseDirection(String sortDir) {
-        try {
-            return Sort.Direction.fromString(sortDir);
-        } catch (IllegalArgumentException ex) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sortDir must be asc or desc");
-        }
-    }
-
     @Operation(summary = "Update user role", description = "Assigns a new role to a user.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Role updated",
@@ -137,7 +118,7 @@ public class UserController {
             @ApiResponse(responseCode = "404", description = "User or role not found", content = @Content)
     })
     @PutMapping("/{id}/role")
-    @PreAuthorize("hasAuthority('user:update-role')")
+    @PreAuthorize("hasAuthority('users:manage')")
     public UserResponse updateUserRole(
             @Parameter(description = "User id", example = "6cfb19a7-71a3-46a8-b1d8-3de77bcd9b61")
             @PathVariable UUID id,
@@ -154,7 +135,7 @@ public class UserController {
             @ApiResponse(responseCode = "404", description = "User or role not found", content = @Content)
     })
     @PatchMapping("/{id}")
-    @PreAuthorize("hasAuthority('user:update')")
+    @PreAuthorize("hasAuthority('users:update')")
     public UserResponse updateUser(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateUserRequest request
@@ -170,7 +151,7 @@ public class UserController {
             @ApiResponse(responseCode = "404", description = "User not found", content = @Content)
     })
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasAuthority('user:update-status')")
+    @PreAuthorize("hasAuthority('users:manage')")
     public UserResponse updateUserStatus(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateUserStatusRequest request
@@ -186,22 +167,9 @@ public class UserController {
             @ApiResponse(responseCode = "404", description = "User not found", content = @Content)
     })
     @GetMapping("/{id}/permissions")
-    @PreAuthorize("hasAuthority('user:read-permissions')")
+    @PreAuthorize("hasAuthority('users:manage')")
     public UserPermissionsResponse getUserPermissions(@PathVariable UUID id) {
         return userService.getUserPermissions(id);
-    }
-
-    @Operation(summary = "Get my permissions", description = "Returns effective permissions for current user.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Permissions returned",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = UserPermissionsResponse.class)))
-    })
-    @GetMapping("/me/permissions")
-    @PreAuthorize("hasAuthority('user:read')")
-    public UserPermissionsResponse getMyPermissions(Authentication authentication) {
-        User user = currentUser(authentication);
-        return userService.getUserPermissions(user.getId());
     }
 
     @Operation(summary = "Request user password reset", description = "Triggers password reset email for the target user.")
@@ -211,7 +179,7 @@ public class UserController {
                             schema = @Schema(implementation = MessageResponse.class)))
     })
     @PostMapping("/{id}/password/reset/request")
-    @PreAuthorize("hasAuthority('user:reset-password-request')")
+    @PreAuthorize("hasAuthority('users:manage')")
     public MessageResponse requestUserPasswordReset(@PathVariable UUID id) {
         userService.requestPasswordResetForUser(id);
         return new MessageResponse("password_reset_requested");
@@ -223,7 +191,7 @@ public class UserController {
             @ApiResponse(responseCode = "404", description = "User not found", content = @Content)
     })
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('user:delete')")
+    @PreAuthorize("hasAuthority('users:delete')")
     public ResponseEntity<Void> deleteUser(
             @Parameter(description = "User id", example = "6cfb19a7-71a3-46a8-b1d8-3de77bcd9b61")
             @PathVariable UUID id
@@ -232,10 +200,21 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
-    private User currentUser(Authentication authentication) {
-        if (authentication == null || !(authentication.getPrincipal() instanceof User user)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthenticated");
+    private String resolveSortBy(String sortBy) {
+        return switch (sortBy) {
+            case "id", "name", "email", "createdAt", "updatedAt" -> sortBy;
+            default -> throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Unsupported sortBy. Allowed: id,name,email,createdAt,updatedAt"
+            );
+        };
+    }
+
+    private Sort.Direction parseDirection(String sortDir) {
+        try {
+            return Sort.Direction.fromString(sortDir);
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sortDir must be asc or desc");
         }
-        return user;
     }
 }

@@ -18,6 +18,9 @@ A production-leaning Spring Boot 3.x backend with Postgres, Redis, RabbitMQ, and
 - Local infra via Docker Compose
 - Health endpoint at `/health`
 - Mail capture with Mailpit UI
+- Split API docs UI:
+  - Admin: `http://localhost:8080/api-docs/admin`
+  - Mobile: `http://localhost:8080/api-docs/mobile`
 
 ## Stack
 
@@ -51,6 +54,13 @@ docker compose up -d
 
 ```sh
 curl http://localhost:8080/health
+```
+
+5. Open API docs
+
+```text
+http://localhost:8080/api-docs/admin
+http://localhost:8080/api-docs/mobile
 ```
 
 ## Services (Local)
@@ -89,6 +99,13 @@ SPRING_MAIL_PASSWORD=
 
 If you run from IntelliJ, add these env vars to the Run Configuration.
 
+## API Docs Routes
+
+- Admin UI: `http://localhost:8080/api-docs/admin`
+- Mobile UI: `http://localhost:8080/api-docs/mobile`
+- Admin OpenAPI JSON: `http://localhost:8080/openapi/admin`
+- Mobile OpenAPI JSON: `http://localhost:8080/openapi/mobile`
+
 ## RedisInsight Connection
 
 Use one of these connection strings in the RedisInsight UI.
@@ -107,15 +124,58 @@ Use one of these connection strings in the RedisInsight UI.
 - If you see a login page, Spring Security is enabled by default. `/health` is open; other endpoints require auth.
 - RedisInsight not loading. Restart it with `docker compose up -d --force-recreate redisinsight`.
 
+## Docker Data Commands (Simple Order)
+
+1. Start all services
+
+```sh
+docker compose up -d
+```
+
+2. Stop all services (keeps data)
+
+```sh
+docker compose down
+```
+
+3. Delete everything permanently (containers + networks + volumes)
+
+```sh
+docker compose down -v --remove-orphans
+```
+
+4. Reset only Postgres data (keep Redis/RabbitMQ data)
+
+```sh
+docker compose down
+docker volume rm backend_pg_data
+docker compose up -d postgres
+```
+
+5. Delete only Postgres data permanently
+
+```sh
+docker compose down
+docker volume rm backend_pg_data
+```
+
+6. Start only Postgres
+
+```sh
+docker compose up -d postgres
+```
+
+If `backend_pg_data` is not found, run:
+
+```sh
+docker volume ls
+```
+
+Then use the exact Postgres volume name from your machine.
+
 ## Useful Commands
 
 ```sh
-# Stop infra
-docker compose down
-
-# Reset infra (removes volumes)
-docker compose down -v
-
 # Tail logs
 docker compose logs -f
 ```

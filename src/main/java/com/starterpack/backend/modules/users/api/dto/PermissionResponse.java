@@ -10,7 +10,7 @@ public record PermissionResponse(
         @Schema(example = "12")
         Integer id,
 
-        @Schema(example = "user:write")
+        @Schema(example = "users:update")
         String name,
 
         @Schema(example = "Create and update users")
