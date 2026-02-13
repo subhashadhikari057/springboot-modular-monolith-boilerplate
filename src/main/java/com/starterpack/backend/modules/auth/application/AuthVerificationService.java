@@ -130,7 +130,11 @@ public class AuthVerificationService {
     }
 
     public Optional<IssuedVerificationData> forgotPassword(ForgotPasswordRequest request) {
-        String email = normalizeEmail(request.email());
+        return forgotPasswordByEmail(request.email());
+    }
+
+    public Optional<IssuedVerificationData> forgotPasswordByEmail(String emailInput) {
+        String email = normalizeEmail(emailInput);
         Optional<User> userOpt = userRepository.findByEmailIgnoreCase(email);
         if (userOpt.isEmpty()) {
             return Optional.empty();

@@ -9,7 +9,11 @@ Required authorities by endpoint:
 - `POST /api/users`: `user:create`
 - `GET /api/users/{id}`: `user:read`
 - `GET /api/users`: `user:read`
+- `PATCH /api/users/{id}`: `user:update`
+- `PATCH /api/users/{id}/status`: `user:update-status`
 - `PUT /api/users/{id}/role`: `user:update-role`
+- `GET /api/users/{id}/permissions`: `user:read-permissions`
+- `POST /api/users/{id}/password/reset/request`: `user:reset-password-request`
 - `DELETE /api/users/{id}`: `user:delete`
 
 ## Endpoints
@@ -42,6 +46,7 @@ Required authorities by endpoint:
   - `size` (default `20`, range `1..100`)
   - `sortBy` (`id|name|email|createdAt|updatedAt`, default `createdAt`)
   - `sortDir` (`asc|desc`, default `desc`)
+  - `q` (optional text search over `name` and `email`)
   - `roleId` (optional)
   - `emailVerified` (optional `true|false`)
 
@@ -93,6 +98,49 @@ Response shape:
 ### 5) Delete User
 - `DELETE /api/users/{id}`
 - Success: `204` (no body).
+
+### 6) Update User (Patch)
+- `PATCH /api/users/{id}`
+- Request fields are optional:
+```json
+{
+  "name": "Updated Name",
+  "phone": "+1-415-555-9999",
+  "image": "https://cdn.example.com/avatars/new.png",
+  "roleId": 2,
+  "emailVerified": true,
+  "phoneVerified": false,
+  "status": "ACTIVE"
+}
+```
+- If `roleId` changes, backend revokes active sessions for that user.
+
+### 7) Update User Status
+- `PATCH /api/users/{id}/status`
+```json
+{
+  "status": "LOCKED"
+}
+```
+- On non-`ACTIVE` status, backend revokes active sessions.
+
+### 8) Get User Permissions
+- `GET /api/users/{id}/permissions`
+- Returns effective permissions from user role.
+
+### 9) Get My Permissions
+- `GET /api/users/me/permissions`
+- Returns effective permissions for currently logged-in user.
+
+### 10) Admin Request Password Reset
+- `POST /api/users/{id}/password/reset/request`
+- Triggers password reset email for that user.
+- Response:
+```json
+{
+  "message": "password_reset_requested"
+}
+```
 
 ## Real Frontend Technique
 1. Build one typed `usersApi` client with methods: `create`, `getById`, `list`, `updateRole`, `remove`.

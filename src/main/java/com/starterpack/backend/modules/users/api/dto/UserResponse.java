@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import com.starterpack.backend.modules.users.domain.User;
+import com.starterpack.backend.modules.users.domain.UserStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "User response")
@@ -29,6 +30,8 @@ public record UserResponse(
         @Schema(example = "https://cdn.example.com/avatars/jane.png")
         String image,
 
+        UserStatus status,
+
         RoleSummary role,
 
         OffsetDateTime createdAt,
@@ -43,6 +46,7 @@ public record UserResponse(
                 user.getPhone(),
                 user.isPhoneVerified(),
                 user.getImage(),
+                user.getStatus(),
                 RoleSummary.from(user.getRole()),
                 user.getCreatedAt(),
                 user.getUpdatedAt()

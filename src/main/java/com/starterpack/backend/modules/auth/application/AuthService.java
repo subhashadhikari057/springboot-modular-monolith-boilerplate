@@ -99,6 +99,10 @@ public class AuthService {
         return authVerificationService.forgotPassword(request).map(this::toIssuedVerification);
     }
 
+    public Optional<IssuedVerification> requestPasswordResetByEmail(String email) {
+        return authVerificationService.forgotPasswordByEmail(email).map(this::toIssuedVerification);
+    }
+
     public void resetPassword(ResetPasswordRequest request) {
         authAccountService.resetPassword(request);
     }
