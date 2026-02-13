@@ -140,3 +140,11 @@ rate-limit:
       max-requests: ${RATE_LIMIT_AUTH_ACCOUNT_DELETE_CONFIRM_MAX_REQUESTS:5}
       block-duration: ${RATE_LIMIT_AUTH_ACCOUNT_DELETE_CONFIRM_BLOCK_DURATION:PT1H}
       keys: [userId, route]
+
+audit:
+  retention:
+    enabled: ${AUDIT_RETENTION_ENABLED:true}
+    days: ${AUDIT_RETENTION_DAYS:90}
+    cron: ${AUDIT_RETENTION_CRON:0 30 2 * * *}
+    zone: ${AUDIT_RETENTION_ZONE:UTC}
+    batch-size: ${AUDIT_RETENTION_BATCH_SIZE:5000}
