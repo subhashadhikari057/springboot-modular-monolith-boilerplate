@@ -58,7 +58,7 @@ public class UploadController {
     @RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
             schema = @Schema(type = "object", requiredProperties = {"file"})))
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAuthority('upload:create')")
+    @PreAuthorize("hasAuthority('uploads:create')")
     public ResponseEntity<ResponseDto<UploadResultDto>> upload(
             @RequestPart(value = "file", required = false) MultipartFile file,
             @RequestPart(value = "files", required = false) MultipartFile[] files,
@@ -85,7 +85,7 @@ public class UploadController {
     @RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
             schema = @Schema(type = "object", requiredProperties = {"files"})))
     @PostMapping(value = "/multiple", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAuthority('upload:create')")
+    @PreAuthorize("hasAuthority('uploads:create')")
     public ResponseEntity<ResponseDto<List<UploadResultDto>>> uploadMultiple(
             @RequestPart("files") MultipartFile[] files,
             @RequestParam(required = false) String folder,
@@ -110,7 +110,7 @@ public class UploadController {
             @ApiResponse(responseCode = "403", description = "Missing permission", content = @Content)
     })
     @GetMapping
-    @PreAuthorize("hasAuthority('upload:read')")
+    @PreAuthorize("hasAuthority('uploads:read')")
     public PagedResponse<UploadResponse> list(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -137,7 +137,7 @@ public class UploadController {
             @ApiResponse(responseCode = "404", description = "Upload not found", content = @Content)
     })
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('upload:read')")
+    @PreAuthorize("hasAuthority('uploads:read')")
     public UploadResponse get(
             @Parameter(description = "Upload id", example = "f5ef8d31-b3e7-4a03-a4cf-e8cc6b7f84fb")
             @PathVariable UUID id
@@ -151,7 +151,7 @@ public class UploadController {
             @ApiResponse(responseCode = "404", description = "Upload not found", content = @Content)
     })
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('upload:delete')")
+    @PreAuthorize("hasAuthority('uploads:delete')")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         uploadService.delete(id);
         return ResponseEntity.noContent().build();

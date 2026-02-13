@@ -58,7 +58,7 @@ public class AdminUserController {
             @ApiResponse(responseCode = "409", description = "Email already exists", content = @Content)
     })
     @PostMapping
-    @PreAuthorize("hasAuthority('user:create')")
+    @PreAuthorize("hasAuthority('users:create')")
     public ResponseEntity<UserResponse> createUser(@Valid @RequestBody CreateUserRequest request) {
         User user = userService.createUser(request);
         URI location = URI.create("/api/admin/users/" + user.getId());
@@ -73,7 +73,7 @@ public class AdminUserController {
             @ApiResponse(responseCode = "404", description = "User not found", content = @Content)
     })
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('user:read')")
+    @PreAuthorize("hasAuthority('users:read')")
     public UserResponse getUser(
             @Parameter(description = "User id", example = "6cfb19a7-71a3-46a8-b1d8-3de77bcd9b61")
             @PathVariable UUID id
@@ -88,7 +88,7 @@ public class AdminUserController {
                             schema = @Schema(implementation = UserResponse.class)))
     })
     @GetMapping
-    @PreAuthorize("hasAuthority('user:read')")
+    @PreAuthorize("hasAuthority('users:read')")
     public PagedResponse<UserResponse> listUsers(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -118,7 +118,7 @@ public class AdminUserController {
             @ApiResponse(responseCode = "404", description = "User or role not found", content = @Content)
     })
     @PutMapping("/{id}/role")
-    @PreAuthorize("hasAuthority('user:update-role')")
+    @PreAuthorize("hasAuthority('users:manage')")
     public UserResponse updateUserRole(
             @Parameter(description = "User id", example = "6cfb19a7-71a3-46a8-b1d8-3de77bcd9b61")
             @PathVariable UUID id,
@@ -135,7 +135,7 @@ public class AdminUserController {
             @ApiResponse(responseCode = "404", description = "User or role not found", content = @Content)
     })
     @PatchMapping("/{id}")
-    @PreAuthorize("hasAuthority('user:update')")
+    @PreAuthorize("hasAuthority('users:update')")
     public UserResponse updateUser(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateUserRequest request
@@ -151,7 +151,7 @@ public class AdminUserController {
             @ApiResponse(responseCode = "404", description = "User not found", content = @Content)
     })
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasAuthority('user:update-status')")
+    @PreAuthorize("hasAuthority('users:manage')")
     public UserResponse updateUserStatus(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateUserStatusRequest request
@@ -167,7 +167,7 @@ public class AdminUserController {
             @ApiResponse(responseCode = "404", description = "User not found", content = @Content)
     })
     @GetMapping("/{id}/permissions")
-    @PreAuthorize("hasAuthority('user:read-permissions')")
+    @PreAuthorize("hasAuthority('users:manage')")
     public UserPermissionsResponse getUserPermissions(@PathVariable UUID id) {
         return userService.getUserPermissions(id);
     }
@@ -179,7 +179,7 @@ public class AdminUserController {
                             schema = @Schema(implementation = MessageResponse.class)))
     })
     @PostMapping("/{id}/password/reset/request")
-    @PreAuthorize("hasAuthority('user:reset-password-request')")
+    @PreAuthorize("hasAuthority('users:manage')")
     public MessageResponse requestUserPasswordReset(@PathVariable UUID id) {
         userService.requestPasswordResetForUser(id);
         return new MessageResponse("password_reset_requested");
@@ -191,7 +191,7 @@ public class AdminUserController {
             @ApiResponse(responseCode = "404", description = "User not found", content = @Content)
     })
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('user:delete')")
+    @PreAuthorize("hasAuthority('users:delete')")
     public ResponseEntity<Void> deleteUser(
             @Parameter(description = "User id", example = "6cfb19a7-71a3-46a8-b1d8-3de77bcd9b61")
             @PathVariable UUID id

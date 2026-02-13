@@ -8,7 +8,7 @@ public record PermissionSummary(
         @Schema(example = "12")
         Integer id,
 
-        @Schema(example = "user:write")
+        @Schema(example = "users:update")
         String name
 ) {
     public static PermissionSummary from(Permission permission) {

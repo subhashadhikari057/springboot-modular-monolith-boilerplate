@@ -7,7 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Request to create a permission")
 public record CreatePermissionRequest(
-        @Schema(example = "user:write")
+        @Schema(example = "users:update")
         @NotBlank
         @Size(max = 100)
         String name,

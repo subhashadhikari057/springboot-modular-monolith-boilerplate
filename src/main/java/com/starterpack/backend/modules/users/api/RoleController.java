@@ -46,7 +46,7 @@ public class RoleController {
             @ApiResponse(responseCode = "409", description = "Role already exists", content = @Content)
     })
     @PostMapping
-    @PreAuthorize("hasAuthority('role:create')")
+    @PreAuthorize("hasAuthority('roles:create')")
     public ResponseEntity<RoleResponse> createRole(@Valid @RequestBody CreateRoleRequest request) {
         Role role = roleService.createRole(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(RoleResponse.from(role));
@@ -59,7 +59,7 @@ public class RoleController {
                             schema = @Schema(implementation = RoleResponse.class)))
     })
     @GetMapping
-    @PreAuthorize("hasAuthority('role:read')")
+    @PreAuthorize("hasAuthority('roles:read')")
     public List<RoleResponse> listRoles() {
         return roleService.listRoles().stream().map(RoleResponse::from).toList();
     }
@@ -72,7 +72,7 @@ public class RoleController {
             @ApiResponse(responseCode = "404", description = "Role or permission not found", content = @Content)
     })
     @PutMapping("/{id}/permissions")
-    @PreAuthorize("hasAuthority('role:update-permissions')")
+    @PreAuthorize("hasAuthority('roles:manage')")
     public RoleResponse updateRolePermissions(
             @Parameter(description = "Role id", example = "1")
             @PathVariable Integer id,

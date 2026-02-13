@@ -7,15 +7,15 @@
 - Admin endpoints are permission-protected (`403` if missing authority).
 
 ## Admin Authorities by Endpoint
-- `POST /api/admin/users`: `user:create`
-- `GET /api/admin/users/{id}`: `user:read`
-- `GET /api/admin/users`: `user:read`
-- `PATCH /api/admin/users/{id}`: `user:update`
-- `PATCH /api/admin/users/{id}/status`: `user:update-status`
-- `PUT /api/admin/users/{id}/role`: `user:update-role`
-- `GET /api/admin/users/{id}/permissions`: `user:read-permissions`
-- `POST /api/admin/users/{id}/password/reset/request`: `user:reset-password-request`
-- `DELETE /api/admin/users/{id}`: `user:delete`
+- `POST /api/admin/users`: `users:create`
+- `GET /api/admin/users/{id}`: `users:read`
+- `GET /api/admin/users`: `users:read`
+- `PATCH /api/admin/users/{id}`: `users:update`
+- `PATCH /api/admin/users/{id}/status`: `users:manage`
+- `PUT /api/admin/users/{id}/role`: `users:manage`
+- `GET /api/admin/users/{id}/permissions`: `users:manage`
+- `POST /api/admin/users/{id}/password/reset/request`: `users:manage`
+- `DELETE /api/admin/users/{id}`: `users:delete`
 
 ## Admin Endpoints
 
