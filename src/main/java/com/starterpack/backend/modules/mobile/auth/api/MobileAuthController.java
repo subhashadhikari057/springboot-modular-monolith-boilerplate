@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
+import com.starterpack.backend.common.ratelimit.RateLimited;
 import com.starterpack.backend.config.AuthProperties;
 import com.starterpack.backend.modules.auth.api.dto.AuthResponse;
 import com.starterpack.backend.modules.auth.api.dto.AuthSessionInfoResponse;
@@ -71,6 +72,7 @@ public class MobileAuthController {
                             schema = @Schema(implementation = AuthResponse.class))),
             @ApiResponse(responseCode = "409", description = "Email already exists", content = @Content)
     })
+    @RateLimited("auth-register")
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request, HttpServletRequest servletRequest) {
         AuthSession session = authService.register(request, servletRequest.getRemoteAddr(), servletRequest.getHeader("User-Agent"));
@@ -84,6 +86,7 @@ public class MobileAuthController {
                             schema = @Schema(implementation = AuthResponse.class))),
             @ApiResponse(responseCode = "401", description = "Invalid credentials", content = @Content)
     })
+    @RateLimited("auth-login")
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest servletRequest) {
         AuthSession session = authService.login(request, servletRequest.getRemoteAddr(), servletRequest.getHeader("User-Agent"));
@@ -205,6 +208,7 @@ public class MobileAuthController {
                             schema = @Schema(implementation = AuthResponse.class))),
             @ApiResponse(responseCode = "401", description = "Refresh token invalid or expired", content = @Content)
     })
+    @RateLimited("auth-refresh")
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponse> refresh(HttpServletRequest servletRequest) {
         AuthSession session = authService.refreshSessionByRefreshToken(
@@ -244,6 +248,7 @@ public class MobileAuthController {
             @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content),
             @ApiResponse(responseCode = "401", description = "Unauthenticated", content = @Content)
     })
+    @RateLimited("auth-verify-request")
     @PostMapping("/verify/request")
     public VerificationIssuedResponse requestVerification(
             Authentication authentication,
@@ -262,6 +267,7 @@ public class MobileAuthController {
                             schema = @Schema(implementation = VerificationIssuedResponse.class))),
             @ApiResponse(responseCode = "400", description = "Too soon to resend", content = @Content)
     })
+    @RateLimited("auth-verify-resend")
     @PostMapping("/verify/resend")
     public VerificationIssuedResponse resendVerification(
             Authentication authentication,
@@ -292,6 +298,7 @@ public class MobileAuthController {
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ForgotPasswordResponse.class)))
     })
+    @RateLimited("auth-password-forgot")
     @PostMapping("/password/forgot")
     public ForgotPasswordResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         return authService.forgotPassword(request)
@@ -310,6 +317,7 @@ public class MobileAuthController {
                             schema = @Schema(implementation = MessageResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid or expired token", content = @Content)
     })
+    @RateLimited("auth-password-reset")
     @PostMapping("/password/reset")
     public MessageResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         authService.resetPassword(request);
@@ -323,6 +331,7 @@ public class MobileAuthController {
                             schema = @Schema(implementation = MessageResponse.class))),
             @ApiResponse(responseCode = "401", description = "Invalid credentials", content = @Content)
     })
+    @RateLimited("auth-reauth")
     @PostMapping("/reauth")
     public MessageResponse reauthenticate(
             Authentication authentication,
@@ -340,6 +349,7 @@ public class MobileAuthController {
                             schema = @Schema(implementation = VerificationIssuedResponse.class))),
             @ApiResponse(responseCode = "400", description = "Too soon to request again", content = @Content)
     })
+    @RateLimited("auth-account-delete-request")
     @PostMapping("/account/delete/request")
     public VerificationIssuedResponse requestAccountDeletion(Authentication authentication) {
         User user = currentUser(authentication);
@@ -355,6 +365,7 @@ public class MobileAuthController {
                             schema = @Schema(implementation = MessageResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid or expired token", content = @Content)
     })
+    @RateLimited("auth-account-delete-confirm")
     @PostMapping("/account/delete")
     public ResponseEntity<MessageResponse> deleteMyAccount(
             Authentication authentication,
