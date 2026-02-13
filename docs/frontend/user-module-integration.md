@@ -72,11 +72,34 @@ Example:
 - `DELETE /api/admin/users/{id}`
 - Success: `204`
 
+### 10) List Audit Logs
+- `GET /api/admin/audit-logs`
+- Permission: `users:manage`
+- Query params:
+  - `page` (default `1`, min `1`)
+  - `size` (default `20`, range `1..100`)
+  - `actorUserId` (optional UUID)
+  - `action` (optional exact action key)
+  - `resourceType` (optional)
+  - `resourceId` (optional)
+  - `result` (optional `SUCCESS|FAILURE`)
+  - `from` / `to` (optional ISO datetime)
+
 ## Mobile User-Self Endpoint
 
 ### 1) Get My Permissions
 - `GET /api/mobile/users/me/permissions`
 - Returns effective permissions for current authenticated user.
+
+### 2) Get My Audit Logs
+- `GET /api/mobile/users/me/audit-logs`
+- Returns only current user's audit events.
+- Query params:
+  - `page` (default `1`, min `1`)
+  - `size` (default `20`, range `1..100`)
+  - `action` (optional exact action key)
+  - `result` (optional `SUCCESS|FAILURE`)
+  - `from` / `to` (optional ISO datetime)
 
 ## Real Frontend Technique
 1. Keep `adminUsersApi` separate from mobile self API clients.

@@ -3,6 +3,8 @@ package com.starterpack.backend.modules.auth.application;
 import java.util.UUID;
 
 import com.starterpack.backend.common.error.AppException;
+import com.starterpack.backend.modules.audit.application.AuditActions;
+import com.starterpack.backend.modules.audit.application.AuditEventService;
 import com.starterpack.backend.modules.auth.api.dto.ChangePasswordRequest;
 import com.starterpack.backend.modules.auth.api.dto.DeleteAccountConfirmRequest;
 import com.starterpack.backend.modules.auth.api.dto.ResetPasswordRequest;
@@ -30,6 +32,7 @@ public class AuthAccountService {
     private final PasswordEncoder passwordEncoder;
     private final AuthSessionCachePort authSessionCache;
     private final AuthVerificationService authVerificationService;
+    private final AuditEventService auditEventService;
 
     public AuthAccountService(
             UserRepository userRepository,
@@ -38,7 +41,8 @@ public class AuthAccountService {
             VerificationRepository verificationRepository,
             PasswordEncoder passwordEncoder,
             AuthSessionCachePort authSessionCache,
-            AuthVerificationService authVerificationService
+            AuthVerificationService authVerificationService,
+            AuditEventService auditEventService
     ) {
         this.userRepository = userRepository;
         this.accountRepository = accountRepository;
@@ -47,6 +51,7 @@ public class AuthAccountService {
         this.passwordEncoder = passwordEncoder;
         this.authSessionCache = authSessionCache;
         this.authVerificationService = authVerificationService;
+        this.auditEventService = auditEventService;
     }
 
     @Transactional(readOnly = true)
@@ -76,6 +81,12 @@ public class AuthAccountService {
         account.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         sessionRepository.deleteByUserId(user.getId());
         authSessionCache.evictAllUserSessions(user.getId());
+        auditEventService.record(AuditEventService.AuditEvent.success(
+                AuditActions.AUTH_PASSWORD_CHANGE,
+                "user",
+                user.getId().toString(),
+                java.util.Map.of("provider", LOCAL_PROVIDER)
+        ));
     }
 
     public void resetPassword(ResetPasswordRequest request) {
@@ -89,6 +100,12 @@ public class AuthAccountService {
         account.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         sessionRepository.deleteByUserId(user.getId());
         authSessionCache.evictAllUserSessions(user.getId());
+        auditEventService.record(AuditEventService.AuditEvent.success(
+                AuditActions.AUTH_PASSWORD_RESET,
+                "user",
+                user.getId().toString(),
+                java.util.Map.of("provider", LOCAL_PROVIDER)
+        ));
     }
 
     public void deleteMyAccount(User user, DeleteAccountConfirmRequest request) {
@@ -100,6 +117,12 @@ public class AuthAccountService {
         authSessionCache.evictAllUserSessions(existing.getId());
         verificationRepository.deleteByIdentifier(existing.getId().toString());
         userRepository.delete(existing);
+        auditEventService.record(AuditEventService.AuditEvent.success(
+                AuditActions.AUTH_ACCOUNT_DELETE_CONFIRM,
+                "user",
+                existing.getId().toString(),
+                java.util.Map.of("email", existing.getEmail())
+        ));
     }
 
     private String trimToNull(String value) {

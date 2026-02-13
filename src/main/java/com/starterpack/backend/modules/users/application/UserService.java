@@ -9,6 +9,8 @@ import com.starterpack.backend.common.error.AppException;
 import com.starterpack.backend.common.web.PageMeta;
 import com.starterpack.backend.common.web.PagedResponse;
 import com.starterpack.backend.config.CacheProperties;
+import com.starterpack.backend.modules.audit.application.AuditActions;
+import com.starterpack.backend.modules.audit.application.AuditEventService;
 import com.starterpack.backend.modules.auth.application.port.AuthSessionCachePort;
 import com.starterpack.backend.modules.auth.application.AuthService;
 import com.starterpack.backend.modules.users.api.dto.CreateUserRequest;
@@ -51,6 +53,7 @@ public class UserService {
     private final AuthSessionCachePort authSessionCache;
     private final CacheProperties cacheProperties;
     private final AuthService authService;
+    private final AuditEventService auditEventService;
 
     public UserService(
             UserRepository userRepository,
@@ -62,7 +65,8 @@ public class UserService {
             SessionRepository sessionRepository,
             AuthSessionCachePort authSessionCache,
             CacheProperties cacheProperties,
-            AuthService authService
+            AuthService authService,
+            AuditEventService auditEventService
     ) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
@@ -74,6 +78,7 @@ public class UserService {
         this.authSessionCache = authSessionCache;
         this.cacheProperties = cacheProperties;
         this.authService = authService;
+        this.auditEventService = auditEventService;
     }
 
     public User createUser(CreateUserRequest request) {
@@ -103,6 +108,12 @@ public class UserService {
         accountRepository.save(account);
 
         userListCache.invalidateLists();
+        auditEventService.record(AuditEventService.AuditEvent.success(
+                AuditActions.USERS_CREATE,
+                "user",
+                user.getId().toString(),
+                java.util.Map.of("email", user.getEmail(), "roleId", role.getId())
+        ));
         return user;
     }
 
@@ -148,6 +159,12 @@ public class UserService {
         sessionRepository.deleteByUserId(user.getId());
         authSessionCache.evictAllUserSessions(user.getId());
         userListCache.invalidateLists();
+        auditEventService.record(AuditEventService.AuditEvent.success(
+                AuditActions.USERS_ROLE_UPDATE,
+                "user",
+                user.getId().toString(),
+                java.util.Map.of("roleId", role.getId())
+        ));
         return user;
     }
 
@@ -178,6 +195,12 @@ public class UserService {
             user.setStatus(request.status());
         }
         userListCache.invalidateLists();
+        auditEventService.record(AuditEventService.AuditEvent.success(
+                AuditActions.USERS_UPDATE,
+                "user",
+                user.getId().toString(),
+                java.util.Map.of()
+        ));
         return user;
     }
 
@@ -189,6 +212,12 @@ public class UserService {
             authSessionCache.evictAllUserSessions(user.getId());
         }
         userListCache.invalidateLists();
+        auditEventService.record(AuditEventService.AuditEvent.success(
+                AuditActions.USERS_STATUS_UPDATE,
+                "user",
+                user.getId().toString(),
+                java.util.Map.of("status", status.name())
+        ));
         return user;
     }
 
@@ -208,6 +237,12 @@ public class UserService {
     public void requestPasswordResetForUser(UUID userId) {
         User user = getUser(userId);
         authService.requestPasswordResetByEmail(user.getEmail());
+        auditEventService.record(AuditEventService.AuditEvent.success(
+                AuditActions.USERS_PASSWORD_RESET_REQUEST,
+                "user",
+                user.getId().toString(),
+                java.util.Map.of("email", user.getEmail())
+        ));
     }
 
     public void deleteUser(UUID userId) {
@@ -215,6 +250,12 @@ public class UserService {
         verificationRepository.deleteByIdentifier(user.getId().toString());
         userListCache.invalidateLists();
         userRepository.delete(user);
+        auditEventService.record(AuditEventService.AuditEvent.success(
+                AuditActions.USERS_DELETE,
+                "user",
+                user.getId().toString(),
+                java.util.Map.of("email", user.getEmail())
+        ));
     }
 
     private Role resolveRole(Integer roleId) {
