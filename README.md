@@ -82,6 +82,7 @@ All services are started by `docker-compose.yml`.
 The app reads config from `.env` (loaded by `scripts/run-dev.sh`).
 
 ```ini
+PORT=8080
 SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5433/app
 SPRING_DATASOURCE_USERNAME=app
 SPRING_DATASOURCE_PASSWORD=app
@@ -95,9 +96,25 @@ SPRING_MAIL_HOST=localhost
 SPRING_MAIL_PORT=1025
 SPRING_MAIL_USERNAME=
 SPRING_MAIL_PASSWORD=
+AUTH_MAIL_FROM=no-reply@starterpack.local
+AUTH_MAIL_VERIFICATION_LINK_BASE_URL=http://localhost:3000/verify
+AUTH_MAIL_PASSWORD_RESET_LINK_BASE_URL=http://localhost:3000/reset-password
+AUTH_VERIFICATION_EXPOSE_TOKEN_IN_RESPONSE=true
+AUTH_VERIFICATION_RESEND_COOLDOWN=PT1M
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_PREFIX=rl
+RATE_LIMIT_AUTH_LOGIN_WINDOW=PT1M
+RATE_LIMIT_AUTH_LOGIN_MAX_REQUESTS=5
+RATE_LIMIT_AUTH_LOGIN_BLOCK_DURATION=PT10M
+AUDIT_RETENTION_ENABLED=true
+AUDIT_RETENTION_DAYS=90
+AUDIT_RETENTION_CRON='0 30 2 * * *'
+AUDIT_RETENTION_ZONE=UTC
+AUDIT_RETENTION_BATCH_SIZE=5000
 ```
 
 If you run from IntelliJ, add these env vars to the Run Configuration.
+Note: keep cron values quoted in `.env` because `scripts/run-dev.sh` sources it as a shell file.
 
 ## API Docs Routes
 
