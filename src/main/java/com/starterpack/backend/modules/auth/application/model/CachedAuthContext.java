@@ -11,6 +11,7 @@ import com.starterpack.backend.modules.users.domain.Session;
 public record CachedAuthContext(
         UUID sessionId,
         UUID userId,
+        String userEmail,
         String sessionToken,
         OffsetDateTime expiresAt,
         String refreshToken,
@@ -28,6 +29,7 @@ public record CachedAuthContext(
         return new CachedAuthContext(
                 session.getId(),
                 session.getUser().getId(),
+                session.getUser().getEmail(),
                 session.getToken(),
                 session.getExpiresAt(),
                 session.getRefreshToken(),

@@ -3,6 +3,7 @@ package com.starterpack.backend.common.logging;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -18,6 +19,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 public class ApiRequestLoggingFilter extends OncePerRequestFilter {
     private static final Logger logger = LoggerFactory.getLogger("API_REQUEST");
+    public static final String REQUEST_ID_HEADER = "X-Request-Id";
+    public static final String REQUEST_ID_ATTR = "requestId";
 
     @Override
     protected void doFilterInternal(
@@ -25,6 +28,10 @@ public class ApiRequestLoggingFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
+        String requestId = resolveRequestId(request);
+        request.setAttribute(REQUEST_ID_ATTR, requestId);
+        response.setHeader(REQUEST_ID_HEADER, requestId);
+
         Instant startedAt = Instant.now();
         try {
             filterChain.doFilter(request, response);
@@ -32,11 +39,12 @@ public class ApiRequestLoggingFilter extends OncePerRequestFilter {
             long elapsedMs = Duration.between(startedAt, Instant.now()).toMillis();
             String path = request.getRequestURI();
             String message = String.format(
-                    "%s %s -> %d (%d ms)",
+                    "%s %s -> %d (%d ms) requestId=%s",
                     request.getMethod(),
                     path,
                     response.getStatus(),
-                    elapsedMs
+                    elapsedMs,
+                    requestId
             );
             String coloredMessage = colorizeByStatus(message, response.getStatus());
 
@@ -49,6 +57,14 @@ public class ApiRequestLoggingFilter extends OncePerRequestFilter {
                 logger.info(coloredMessage);
             }
         }
+    }
+
+    private String resolveRequestId(HttpServletRequest request) {
+        String fromHeader = request.getHeader(REQUEST_ID_HEADER);
+        if (fromHeader != null && !fromHeader.isBlank()) {
+            return fromHeader.trim();
+        }
+        return UUID.randomUUID().toString();
     }
 
     private String colorizeByStatus(String message, int status) {

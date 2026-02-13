@@ -11,6 +11,8 @@ import com.starterpack.backend.modules.audit.domain.AuditLog;
 import com.starterpack.backend.modules.audit.domain.AuditResult;
 import com.starterpack.backend.modules.audit.infrastructure.AuditLogRepository;
 import com.starterpack.backend.modules.users.domain.User;
+import com.starterpack.backend.modules.users.infrastructure.UserRepository;
+import com.starterpack.backend.common.logging.ApiRequestLoggingFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
@@ -27,10 +29,16 @@ public class AuditEventService {
 
     private final AuditLogRepository auditLogRepository;
     private final EntityManager entityManager;
+    private final UserRepository userRepository;
 
-    public AuditEventService(AuditLogRepository auditLogRepository, EntityManager entityManager) {
+    public AuditEventService(
+            AuditLogRepository auditLogRepository,
+            EntityManager entityManager,
+            UserRepository userRepository
+    ) {
         this.auditLogRepository = auditLogRepository;
         this.entityManager = entityManager;
+        this.userRepository = userRepository;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -40,6 +48,9 @@ public class AuditEventService {
 
             UUID actorUserId = event.actorUserId() != null ? event.actorUserId() : currentActorUserId().orElse(null);
             String actorEmail = event.actorEmail() != null ? event.actorEmail() : currentActorEmail().orElse(null);
+            if ((actorEmail == null || actorEmail.isBlank()) && actorUserId != null) {
+                actorEmail = userRepository.findById(actorUserId).map(User::getEmail).orElse(null);
+            }
 
             AuditLog row = new AuditLog();
             if (actorUserId != null) {
@@ -50,10 +61,10 @@ public class AuditEventService {
             row.setResourceType(event.resourceType());
             row.setResourceId(event.resourceId());
             row.setResult(event.result());
-            row.setReasonCode(event.reasonCode());
+            row.setReasonCode(resolveReasonCode(event));
             row.setIpAddress(firstNonBlank(event.ipAddress(), clientIp(request)));
             row.setUserAgent(firstNonBlank(event.userAgent(), request == null ? null : request.getHeader("User-Agent")));
-            row.setRequestId(firstNonBlank(event.requestId(), request == null ? null : request.getHeader("X-Request-Id")));
+            row.setRequestId(resolveRequestId(event, request));
             row.setMetadata(event.metadata() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(event.metadata()));
             auditLogRepository.save(row);
         } catch (RuntimeException ex) {
@@ -151,5 +162,28 @@ public class AuditEventService {
             return primary;
         }
         return fallback;
+    }
+
+    private String resolveRequestId(AuditEvent event, HttpServletRequest request) {
+        String explicit = firstNonBlank(event.requestId(), null);
+        if (explicit != null) {
+            return explicit;
+        }
+        if (request == null) {
+            return null;
+        }
+        String header = firstNonBlank(request.getHeader(ApiRequestLoggingFilter.REQUEST_ID_HEADER), null);
+        if (header != null) {
+            return header;
+        }
+        Object attr = request.getAttribute(ApiRequestLoggingFilter.REQUEST_ID_ATTR);
+        return attr instanceof String value && !value.isBlank() ? value : null;
+    }
+
+    private String resolveReasonCode(AuditEvent event) {
+        if (event.reasonCode() != null && !event.reasonCode().isBlank()) {
+            return event.reasonCode();
+        }
+        return event.result() == AuditResult.SUCCESS ? "OK" : "UNKNOWN";
     }
 }

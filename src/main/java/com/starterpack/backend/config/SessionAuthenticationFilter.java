@@ -76,6 +76,7 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
     private void authenticate(CachedAuthContext context, HttpServletRequest request) {
         User principal = new User();
         principal.setId(context.userId());
+        principal.setEmail(context.userEmail());
         Role role = new Role();
         role.setName(context.roleName());
         principal.setRole(role);
