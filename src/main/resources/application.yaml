@@ -85,3 +85,58 @@ upload:
   local:
     base-dir: uploads
     public-base-url: /files
+
+rate-limit:
+  enabled: ${RATE_LIMIT_ENABLED:true}
+  prefix: ${RATE_LIMIT_PREFIX:rl}
+  policies:
+    auth-login:
+      window: ${RATE_LIMIT_AUTH_LOGIN_WINDOW:PT1M}
+      max-requests: ${RATE_LIMIT_AUTH_LOGIN_MAX_REQUESTS:5}
+      block-duration: ${RATE_LIMIT_AUTH_LOGIN_BLOCK_DURATION:PT10M}
+      keys: [ip, route]
+    auth-register:
+      window: ${RATE_LIMIT_AUTH_REGISTER_WINDOW:PT10M}
+      max-requests: ${RATE_LIMIT_AUTH_REGISTER_MAX_REQUESTS:5}
+      block-duration: ${RATE_LIMIT_AUTH_REGISTER_BLOCK_DURATION:PT30M}
+      keys: [ip, route]
+    auth-refresh:
+      window: ${RATE_LIMIT_AUTH_REFRESH_WINDOW:PT1M}
+      max-requests: ${RATE_LIMIT_AUTH_REFRESH_MAX_REQUESTS:20}
+      block-duration: ${RATE_LIMIT_AUTH_REFRESH_BLOCK_DURATION:PT5M}
+      keys: [ip, route]
+    auth-verify-request:
+      window: ${RATE_LIMIT_AUTH_VERIFY_REQUEST_WINDOW:PT15M}
+      max-requests: ${RATE_LIMIT_AUTH_VERIFY_REQUEST_MAX_REQUESTS:3}
+      block-duration: ${RATE_LIMIT_AUTH_VERIFY_REQUEST_BLOCK_DURATION:PT30M}
+      keys: [userId, route]
+    auth-verify-resend:
+      window: ${RATE_LIMIT_AUTH_VERIFY_RESEND_WINDOW:PT15M}
+      max-requests: ${RATE_LIMIT_AUTH_VERIFY_RESEND_MAX_REQUESTS:3}
+      block-duration: ${RATE_LIMIT_AUTH_VERIFY_RESEND_BLOCK_DURATION:PT30M}
+      keys: [userId, route]
+    auth-password-forgot:
+      window: ${RATE_LIMIT_AUTH_PASSWORD_FORGOT_WINDOW:PT15M}
+      max-requests: ${RATE_LIMIT_AUTH_PASSWORD_FORGOT_MAX_REQUESTS:5}
+      block-duration: ${RATE_LIMIT_AUTH_PASSWORD_FORGOT_BLOCK_DURATION:PT30M}
+      keys: [ip, route]
+    auth-password-reset:
+      window: ${RATE_LIMIT_AUTH_PASSWORD_RESET_WINDOW:PT15M}
+      max-requests: ${RATE_LIMIT_AUTH_PASSWORD_RESET_MAX_REQUESTS:10}
+      block-duration: ${RATE_LIMIT_AUTH_PASSWORD_RESET_BLOCK_DURATION:PT30M}
+      keys: [ip, route]
+    auth-reauth:
+      window: ${RATE_LIMIT_AUTH_REAUTH_WINDOW:PT1M}
+      max-requests: ${RATE_LIMIT_AUTH_REAUTH_MAX_REQUESTS:10}
+      block-duration: ${RATE_LIMIT_AUTH_REAUTH_BLOCK_DURATION:PT5M}
+      keys: [userId, route]
+    auth-account-delete-request:
+      window: ${RATE_LIMIT_AUTH_ACCOUNT_DELETE_REQUEST_WINDOW:PT1H}
+      max-requests: ${RATE_LIMIT_AUTH_ACCOUNT_DELETE_REQUEST_MAX_REQUESTS:3}
+      block-duration: ${RATE_LIMIT_AUTH_ACCOUNT_DELETE_REQUEST_BLOCK_DURATION:PT2H}
+      keys: [userId, route]
+    auth-account-delete-confirm:
+      window: ${RATE_LIMIT_AUTH_ACCOUNT_DELETE_CONFIRM_WINDOW:PT15M}
+      max-requests: ${RATE_LIMIT_AUTH_ACCOUNT_DELETE_CONFIRM_MAX_REQUESTS:5}
+      block-duration: ${RATE_LIMIT_AUTH_ACCOUNT_DELETE_CONFIRM_BLOCK_DURATION:PT1H}
+      keys: [userId, route]
