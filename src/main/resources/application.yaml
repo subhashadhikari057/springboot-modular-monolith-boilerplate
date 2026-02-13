@@ -85,11 +85,3 @@ upload:
   local:
     base-dir: uploads
     public-base-url: /files
-
-infra:
-  ui:
-    rabbitmq: ${INFRA_UI_RABBITMQ:http://localhost:15672}
-    mailpit: ${INFRA_UI_MAILPIT:http://localhost:8025}
-    redis-insight: ${INFRA_UI_REDIS_INSIGHT:http://localhost:8001}
-    admin-docs: ${INFRA_UI_ADMIN_DOCS:http://localhost:${PORT:8080}/api-docs/admin}
-    mobile-docs: ${INFRA_UI_MOBILE_DOCS:http://localhost:${PORT:8080}/api-docs/mobile}
