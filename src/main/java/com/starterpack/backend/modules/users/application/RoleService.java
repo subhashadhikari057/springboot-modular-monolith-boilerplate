@@ -7,6 +7,8 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.starterpack.backend.common.error.AppException;
+import com.starterpack.backend.modules.audit.application.AuditActions;
+import com.starterpack.backend.modules.audit.application.AuditEventService;
 import com.starterpack.backend.modules.auth.application.port.AuthSessionCachePort;
 import com.starterpack.backend.modules.users.api.dto.CreateRoleRequest;
 import com.starterpack.backend.modules.users.domain.Permission;
@@ -26,19 +28,22 @@ public class RoleService {
     private final UserRepository userRepository;
     private final SessionRepository sessionRepository;
     private final AuthSessionCachePort authSessionCache;
+    private final AuditEventService auditEventService;
 
     public RoleService(
             RoleRepository roleRepository,
             PermissionRepository permissionRepository,
             UserRepository userRepository,
             SessionRepository sessionRepository,
-            AuthSessionCachePort authSessionCache
+            AuthSessionCachePort authSessionCache,
+            AuditEventService auditEventService
     ) {
         this.roleRepository = roleRepository;
         this.permissionRepository = permissionRepository;
         this.userRepository = userRepository;
         this.sessionRepository = sessionRepository;
         this.authSessionCache = authSessionCache;
+        this.auditEventService = auditEventService;
     }
 
     public Role createRole(CreateRoleRequest request) {
@@ -50,7 +55,14 @@ public class RoleService {
         Role role = new Role();
         role.setName(name);
         role.setDescription(request.description());
-        return roleRepository.save(role);
+        Role saved = roleRepository.save(role);
+        auditEventService.record(AuditEventService.AuditEvent.success(
+                AuditActions.ROLES_CREATE,
+                "role",
+                saved.getId().toString(),
+                java.util.Map.of("name", saved.getName())
+        ));
+        return saved;
     }
 
     @Transactional(readOnly = true)
@@ -69,6 +81,12 @@ public class RoleService {
 
         role.setPermissions(new HashSet<>(permissions));
         revokeRoleSessions(roleId);
+        auditEventService.record(AuditEventService.AuditEvent.success(
+                AuditActions.ROLES_PERMISSIONS_UPDATE,
+                "role",
+                role.getId().toString(),
+                java.util.Map.of("permissionCount", permissions.size())
+        ));
         return role;
     }
 

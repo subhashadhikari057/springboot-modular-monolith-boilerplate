@@ -10,6 +10,8 @@ import java.util.UUID;
 
 import com.starterpack.backend.common.error.AppException;
 import com.starterpack.backend.config.AuthProperties;
+import com.starterpack.backend.modules.audit.application.AuditActions;
+import com.starterpack.backend.modules.audit.application.AuditEventService;
 import com.starterpack.backend.modules.auth.application.port.AuthEmailSenderPort;
 import com.starterpack.backend.modules.auth.application.port.VerificationResendThrottlePort;
 import com.starterpack.backend.modules.auth.api.dto.ConfirmVerificationRequest;
@@ -42,6 +44,7 @@ public class AuthVerificationService {
     private final AuthTokenService authTokenService;
     private final AuthEmailSenderPort authEmailSenderPort;
     private final VerificationResendThrottlePort verificationResendThrottlePort;
+    private final AuditEventService auditEventService;
     private final Map<VerificationPurpose, VerificationPurposeHandler> purposeHandlers;
     private final Map<VerificationChannel, VerificationChannelTargetResolver> channelResolvers;
 
@@ -53,6 +56,7 @@ public class AuthVerificationService {
             AuthTokenService authTokenService,
             AuthEmailSenderPort authEmailSenderPort,
             VerificationResendThrottlePort verificationResendThrottlePort,
+            AuditEventService auditEventService,
             List<VerificationPurposeHandler> purposeHandlers,
             List<VerificationChannelTargetResolver> channelResolvers
     ) {
@@ -63,6 +67,7 @@ public class AuthVerificationService {
         this.authTokenService = authTokenService;
         this.authEmailSenderPort = authEmailSenderPort;
         this.verificationResendThrottlePort = verificationResendThrottlePort;
+        this.auditEventService = auditEventService;
         this.purposeHandlers = indexPurposeHandlers(purposeHandlers);
         this.channelResolvers = indexChannelResolvers(channelResolvers);
     }
@@ -73,7 +78,14 @@ public class AuthVerificationService {
         if (!acquired) {
             throw AppException.badRequest("Verification already requested recently. Please wait before retrying.");
         }
-        return requestVerification(user, request);
+        IssuedVerificationData issued = requestVerification(user, request);
+        auditEventService.record(AuditEventService.AuditEvent.success(
+                AuditActions.AUTH_VERIFY_RESEND,
+                "verification",
+                issued.verification().getId().toString(),
+                Map.of("purpose", request.purpose().name(), "channel", request.channel().name())
+        ));
+        return issued;
     }
 
     public IssuedVerificationData requestAccountDeletionVerification(User user) {
@@ -87,7 +99,14 @@ public class AuthVerificationService {
         if (!acquired) {
             throw AppException.badRequest("Verification already requested recently. Please wait before retrying.");
         }
-        return requestVerification(user, request);
+        IssuedVerificationData issued = requestVerification(user, request);
+        auditEventService.record(AuditEventService.AuditEvent.success(
+                AuditActions.AUTH_ACCOUNT_DELETE_REQUEST,
+                "verification",
+                issued.verification().getId().toString(),
+                Map.of("purpose", request.purpose().name(), "channel", request.channel().name())
+        ));
+        return issued;
     }
 
     public IssuedVerificationData requestVerification(User user, RequestVerificationRequest request) {
@@ -114,6 +133,12 @@ public class AuthVerificationService {
                     buildVerificationLink(verification.getIdentifier(), plainToken, request.purpose())
             ));
         }
+        auditEventService.record(AuditEventService.AuditEvent.success(
+                AuditActions.AUTH_VERIFY_REQUEST,
+                "verification",
+                verification.getId().toString(),
+                Map.of("purpose", request.purpose().name(), "channel", request.channel().name())
+        ));
         return new IssuedVerificationData(verification, plainToken);
     }
 
@@ -127,6 +152,12 @@ public class AuthVerificationService {
 
         verification.setConsumedAt(OffsetDateTime.now());
         applyVerificationEffect(verification);
+        auditEventService.record(AuditEventService.AuditEvent.success(
+                AuditActions.AUTH_VERIFY_CONFIRM,
+                "verification",
+                verification.getId().toString(),
+                Map.of("purpose", request.purpose().name(), "channel", request.channel().name())
+        ));
     }
 
     public Optional<IssuedVerificationData> forgotPassword(ForgotPasswordRequest request) {
@@ -164,6 +195,12 @@ public class AuthVerificationService {
                 verification.getIdentifier(),
                 plainToken,
                 buildPasswordResetLink(verification.getIdentifier(), plainToken)
+        ));
+        auditEventService.record(AuditEventService.AuditEvent.success(
+                AuditActions.AUTH_PASSWORD_FORGOT_REQUEST,
+                "verification",
+                verification.getId().toString(),
+                Map.of("purpose", verification.getPurpose().name(), "channel", verification.getChannel().name())
         ));
         return Optional.of(new IssuedVerificationData(verification, plainToken));
     }
