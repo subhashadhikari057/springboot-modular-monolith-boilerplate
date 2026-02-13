@@ -27,6 +27,10 @@ public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificat
     @EntityGraph(attributePaths = {"role", "role.permissions"})
     Optional<User> findByEmailIgnoreCase(String email);
 
+    @EntityGraph(attributePaths = {"role", "role.permissions"})
+    @Query("select u from User u where u.id = :id")
+    Optional<User> findByIdWithRoleAndPermissions(UUID id);
+
     @Query("select u.id from User u where u.role.id = :roleId")
     List<UUID> findIdsByRoleId(Integer roleId);
 }

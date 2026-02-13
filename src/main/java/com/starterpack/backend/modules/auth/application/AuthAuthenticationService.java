@@ -1,8 +1,11 @@
 package com.starterpack.backend.modules.auth.application;
 
 import java.time.OffsetDateTime;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.UUID;
 
 import com.starterpack.backend.common.error.AppException;
 import com.starterpack.backend.config.AuthProperties;
@@ -144,6 +147,45 @@ public class AuthAuthenticationService {
         return toAuthSessionData(user, newSession);
     }
 
+    @Transactional(readOnly = true)
+    public List<ManagedSessionData> listSessions(UUID userId, String currentSessionToken) {
+        return sessionRepository.findAllByUserId(userId).stream()
+                .sorted(Comparator.comparing(Session::getCreatedAt).reversed())
+                .map(session -> new ManagedSessionData(
+                        session.getId(),
+                        session.getToken().equals(currentSessionToken),
+                        session.getCreatedAt(),
+                        session.getExpiresAt(),
+                        session.getRefreshExpiresAt(),
+                        session.getIpAddress(),
+                        session.getUserAgent()
+                ))
+                .toList();
+    }
+
+    public boolean revokeSession(UUID userId, UUID sessionId, String currentSessionToken) {
+        Session session = sessionRepository.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> AppException.notFound("Session not found"));
+        boolean current = session.getToken().equals(currentSessionToken);
+        sessionRepository.delete(session);
+        authSessionCache.evictSession(session.getToken(), session.getRefreshToken(), userId);
+        return current;
+    }
+
+    public void logoutAll(UUID userId) {
+        sessionRepository.deleteByUserId(userId);
+        authSessionCache.evictAllUserSessions(userId);
+    }
+
+    public void reauthenticate(User user, String password) {
+        String email = normalizeEmail(user.getEmail());
+        Account account = accountRepository.findByProviderIdAndAccountId(LOCAL_PROVIDER, email)
+                .orElseThrow(() -> AppException.unauthorized("Re-authentication failed"));
+        if (account.getPasswordHash() == null || !passwordEncoder.matches(password, account.getPasswordHash())) {
+            throw AppException.unauthorized("Re-authentication failed");
+        }
+    }
+
     private Session createSession(User user, String ipAddress, String userAgent) {
         Session session = new Session();
         session.setUser(user);
@@ -197,6 +239,17 @@ public class AuthAuthenticationService {
             OffsetDateTime expiresAt,
             String refreshToken,
             OffsetDateTime refreshExpiresAt
+    ) {
+    }
+
+    public record ManagedSessionData(
+            UUID sessionId,
+            boolean current,
+            OffsetDateTime createdAt,
+            OffsetDateTime expiresAt,
+            OffsetDateTime refreshExpiresAt,
+            String ipAddress,
+            String userAgent
     ) {
     }
 }

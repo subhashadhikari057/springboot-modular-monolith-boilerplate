@@ -1,20 +1,25 @@
 package com.starterpack.backend.modules.auth.api;
 
+import java.util.List;
 import java.util.Arrays;
+import java.util.UUID;
 
 import com.starterpack.backend.config.AuthProperties;
 import com.starterpack.backend.modules.auth.api.dto.AuthResponse;
 import com.starterpack.backend.modules.auth.api.dto.ChangePasswordRequest;
 import com.starterpack.backend.modules.auth.api.dto.ConfirmVerificationRequest;
+import com.starterpack.backend.modules.auth.api.dto.DeleteAccountConfirmRequest;
 import com.starterpack.backend.modules.auth.api.dto.ForgotPasswordRequest;
 import com.starterpack.backend.modules.auth.api.dto.ForgotPasswordResponse;
 import com.starterpack.backend.modules.auth.api.dto.LoginRequest;
 import com.starterpack.backend.modules.auth.api.dto.MessageResponse;
+import com.starterpack.backend.modules.auth.api.dto.ReauthRequest;
 import com.starterpack.backend.modules.auth.api.dto.RegisterRequest;
 import com.starterpack.backend.modules.auth.api.dto.RequestVerificationRequest;
 import com.starterpack.backend.modules.auth.api.dto.ResetPasswordRequest;
 import com.starterpack.backend.modules.auth.api.dto.UpdateMyProfileRequest;
 import com.starterpack.backend.modules.auth.api.dto.VerificationIssuedResponse;
+import com.starterpack.backend.modules.auth.api.dto.AuthSessionInfoResponse;
 import com.starterpack.backend.modules.auth.application.AuthCookieService;
 import com.starterpack.backend.modules.auth.application.AuthService;
 import com.starterpack.backend.modules.auth.application.AuthService.AuthSession;
@@ -40,6 +45,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
@@ -96,6 +103,68 @@ public class AuthController {
         authCookieService.clearSessionCookie(headers);
         authCookieService.clearRefreshCookie(headers);
         return ResponseEntity.ok().headers(headers).body(new MessageResponse("logged_out"));
+    }
+
+    @Operation(summary = "List active sessions", description = "Returns all active sessions/devices for current user.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Sessions listed", content = @Content),
+            @ApiResponse(responseCode = "401", description = "Unauthenticated", content = @Content)
+    })
+    @GetMapping("/sessions")
+    public List<AuthSessionInfoResponse> listSessions(Authentication authentication, HttpServletRequest request) {
+        User user = currentUser(authentication);
+        String currentSessionToken = extractSessionToken(request);
+        return authService.listSessions(user.getId(), currentSessionToken).stream()
+                .map(session -> new AuthSessionInfoResponse(
+                        session.sessionId(),
+                        session.current(),
+                        session.createdAt(),
+                        session.expiresAt(),
+                        session.refreshExpiresAt(),
+                        session.ipAddress(),
+                        session.userAgent()
+                ))
+                .toList();
+    }
+
+    @Operation(summary = "Revoke one session", description = "Revokes one active session/device for current user.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Session revoked",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = MessageResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Session not found", content = @Content)
+    })
+    @DeleteMapping("/sessions/{sessionId}")
+    public ResponseEntity<MessageResponse> revokeSession(
+            Authentication authentication,
+            HttpServletRequest request,
+            @PathVariable UUID sessionId
+    ) {
+        User user = currentUser(authentication);
+        String currentSessionToken = extractSessionToken(request);
+        boolean revokedCurrent = authService.revokeSession(user.getId(), sessionId, currentSessionToken);
+        HttpHeaders headers = new HttpHeaders();
+        if (revokedCurrent) {
+            authCookieService.clearSessionCookie(headers);
+            authCookieService.clearRefreshCookie(headers);
+        }
+        return ResponseEntity.ok().headers(headers).body(new MessageResponse("session_revoked"));
+    }
+
+    @Operation(summary = "Logout all sessions", description = "Revokes all active sessions/devices for current user.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "All sessions revoked",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = MessageResponse.class)))
+    })
+    @PostMapping("/logout-all")
+    public ResponseEntity<MessageResponse> logoutAll(Authentication authentication) {
+        User user = currentUser(authentication);
+        authService.logoutAll(user.getId());
+        HttpHeaders headers = new HttpHeaders();
+        authCookieService.clearSessionCookie(headers);
+        authCookieService.clearRefreshCookie(headers);
+        return ResponseEntity.ok().headers(headers).body(new MessageResponse("logged_out_all"));
     }
 
     @Operation(summary = "Current user", description = "Returns the currently authenticated user.")
@@ -184,6 +253,76 @@ public class AuthController {
         AuthService.IssuedVerification issued = authService.requestVerification(user, request);
         String token = authProperties.getVerification().isExposeTokenInResponse() ? issued.token() : null;
         return VerificationIssuedResponse.from(issued.verification(), token);
+    }
+
+    @Operation(summary = "Resend verification", description = "Re-issues verification token for the authenticated user with cooldown.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Verification re-issued",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = VerificationIssuedResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Too soon to resend", content = @Content)
+    })
+    @PostMapping("/verify/resend")
+    public VerificationIssuedResponse resendVerification(
+            Authentication authentication,
+            @Valid @RequestBody RequestVerificationRequest request
+    ) {
+        User user = currentUser(authentication);
+        AuthService.IssuedVerification issued = authService.resendVerification(user, request);
+        String token = authProperties.getVerification().isExposeTokenInResponse() ? issued.token() : null;
+        return VerificationIssuedResponse.from(issued.verification(), token);
+    }
+
+    @Operation(summary = "Re-authenticate", description = "Validates current password for sensitive operations.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Re-authenticated",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = MessageResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Invalid credentials", content = @Content)
+    })
+    @PostMapping("/reauth")
+    public MessageResponse reauthenticate(
+            Authentication authentication,
+            @Valid @RequestBody ReauthRequest request
+    ) {
+        User user = currentUser(authentication);
+        authService.reauthenticate(user, request);
+        return new MessageResponse("reauthenticated");
+    }
+
+    @Operation(summary = "Request account deletion verification", description = "Sends account deletion verification email to current user.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Deletion verification issued",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = VerificationIssuedResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Too soon to request again", content = @Content)
+    })
+    @PostMapping("/account/delete/request")
+    public VerificationIssuedResponse requestAccountDeletion(Authentication authentication) {
+        User user = currentUser(authentication);
+        AuthService.IssuedVerification issued = authService.requestAccountDeletionVerification(user);
+        String token = authProperties.getVerification().isExposeTokenInResponse() ? issued.token() : null;
+        return VerificationIssuedResponse.from(issued.verification(), token);
+    }
+
+    @Operation(summary = "Delete my account", description = "Deletes current user account after token verification.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Account deleted",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = MessageResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid or expired token", content = @Content)
+    })
+    @PostMapping("/account/delete")
+    public ResponseEntity<MessageResponse> deleteMyAccount(
+            Authentication authentication,
+            @Valid @RequestBody DeleteAccountConfirmRequest request
+    ) {
+        User user = currentUser(authentication);
+        authService.deleteMyAccount(user, request);
+        HttpHeaders headers = new HttpHeaders();
+        authCookieService.clearSessionCookie(headers);
+        authCookieService.clearRefreshCookie(headers);
+        return ResponseEntity.ok().headers(headers).body(new MessageResponse("account_deleted"));
     }
 
     @Operation(summary = "Confirm verification", description = "Confirms email/phone/password-reset verification token.")

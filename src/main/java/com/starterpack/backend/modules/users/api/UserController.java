@@ -4,8 +4,12 @@ import java.net.URI;
 import java.util.UUID;
 
 import com.starterpack.backend.common.web.PagedResponse;
+import com.starterpack.backend.modules.auth.api.dto.MessageResponse;
 import com.starterpack.backend.modules.users.api.dto.CreateUserRequest;
+import com.starterpack.backend.modules.users.api.dto.UpdateUserRequest;
+import com.starterpack.backend.modules.users.api.dto.UpdateUserStatusRequest;
 import com.starterpack.backend.modules.users.api.dto.UpdateUserRoleRequest;
+import com.starterpack.backend.modules.users.api.dto.UserPermissionsResponse;
 import com.starterpack.backend.modules.users.api.dto.UserResponse;
 import com.starterpack.backend.modules.users.application.UserService;
 import com.starterpack.backend.modules.users.domain.User;
@@ -21,6 +25,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,6 +36,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
@@ -89,6 +95,7 @@ public class UserController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDir,
+            @RequestParam(required = false) String q,
             @RequestParam(required = false) Integer roleId,
             @RequestParam(required = false) Boolean emailVerified
     ) {
@@ -101,7 +108,7 @@ public class UserController {
 
         String resolvedSortBy = resolveSortBy(sortBy);
         Sort.Direction direction = parseDirection(sortDir);
-        return userService.listUsers(page - 1, size, resolvedSortBy, direction, roleId, emailVerified);
+        return userService.listUsers(page - 1, size, resolvedSortBy, direction, q, roleId, emailVerified);
     }
 
     private String resolveSortBy(String sortBy) {
@@ -139,6 +146,77 @@ public class UserController {
         return UserResponse.from(userService.updateUserRole(id, request.roleId()));
     }
 
+    @Operation(summary = "Update user", description = "Partially updates user fields.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "User updated",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = UserResponse.class))),
+            @ApiResponse(responseCode = "404", description = "User or role not found", content = @Content)
+    })
+    @PatchMapping("/{id}")
+    @PreAuthorize("hasAuthority('user:update')")
+    public UserResponse updateUser(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateUserRequest request
+    ) {
+        return UserResponse.from(userService.updateUser(id, request));
+    }
+
+    @Operation(summary = "Update user status", description = "Sets account status (ACTIVE, DISABLED, LOCKED).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Status updated",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = UserResponse.class))),
+            @ApiResponse(responseCode = "404", description = "User not found", content = @Content)
+    })
+    @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAuthority('user:update-status')")
+    public UserResponse updateUserStatus(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateUserStatusRequest request
+    ) {
+        return UserResponse.from(userService.updateUserStatus(id, request.status()));
+    }
+
+    @Operation(summary = "Get user permissions", description = "Returns effective permissions for a user.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Permissions returned",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = UserPermissionsResponse.class))),
+            @ApiResponse(responseCode = "404", description = "User not found", content = @Content)
+    })
+    @GetMapping("/{id}/permissions")
+    @PreAuthorize("hasAuthority('user:read-permissions')")
+    public UserPermissionsResponse getUserPermissions(@PathVariable UUID id) {
+        return userService.getUserPermissions(id);
+    }
+
+    @Operation(summary = "Get my permissions", description = "Returns effective permissions for current user.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Permissions returned",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = UserPermissionsResponse.class)))
+    })
+    @GetMapping("/me/permissions")
+    @PreAuthorize("hasAuthority('user:read')")
+    public UserPermissionsResponse getMyPermissions(Authentication authentication) {
+        User user = currentUser(authentication);
+        return userService.getUserPermissions(user.getId());
+    }
+
+    @Operation(summary = "Request user password reset", description = "Triggers password reset email for the target user.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Request accepted",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = MessageResponse.class)))
+    })
+    @PostMapping("/{id}/password/reset/request")
+    @PreAuthorize("hasAuthority('user:reset-password-request')")
+    public MessageResponse requestUserPasswordReset(@PathVariable UUID id) {
+        userService.requestPasswordResetForUser(id);
+        return new MessageResponse("password_reset_requested");
+    }
+
     @Operation(summary = "Delete user", description = "Deletes a user and related auth records.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "User deleted", content = @Content),
@@ -152,5 +230,12 @@ public class UserController {
     ) {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
+    }
+
+    private User currentUser(Authentication authentication) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof User user)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthenticated");
+        }
+        return user;
     }
 }

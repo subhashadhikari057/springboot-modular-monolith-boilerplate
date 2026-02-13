@@ -109,6 +109,7 @@ public class AuthProperties {
     public static class Verification {
         private Duration ttl = Duration.ofMinutes(15);
         private boolean exposeTokenInResponse = true;
+        private Duration resendCooldown = Duration.ofMinutes(1);
 
         public Duration getTtl() {
             return ttl;
@@ -124,6 +125,14 @@ public class AuthProperties {
 
         public void setExposeTokenInResponse(boolean exposeTokenInResponse) {
             this.exposeTokenInResponse = exposeTokenInResponse;
+        }
+
+        public Duration getResendCooldown() {
+            return resendCooldown;
+        }
+
+        public void setResendCooldown(Duration resendCooldown) {
+            this.resendCooldown = resendCooldown;
         }
     }
 

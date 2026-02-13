@@ -10,12 +10,18 @@ import com.starterpack.backend.common.web.PageMeta;
 import com.starterpack.backend.common.web.PagedResponse;
 import com.starterpack.backend.config.CacheProperties;
 import com.starterpack.backend.modules.auth.application.port.AuthSessionCachePort;
+import com.starterpack.backend.modules.auth.application.AuthService;
 import com.starterpack.backend.modules.users.api.dto.CreateUserRequest;
+import com.starterpack.backend.modules.users.api.dto.RoleSummary;
+import com.starterpack.backend.modules.users.api.dto.UpdateUserRequest;
+import com.starterpack.backend.modules.users.api.dto.UserPermissionsResponse;
 import com.starterpack.backend.modules.users.api.dto.UserResponse;
+import com.starterpack.backend.modules.users.domain.Permission;
 import com.starterpack.backend.modules.users.application.port.UserListCachePort;
 import com.starterpack.backend.modules.users.domain.Account;
 import com.starterpack.backend.modules.users.domain.Role;
 import com.starterpack.backend.modules.users.domain.User;
+import com.starterpack.backend.modules.users.domain.UserStatus;
 import com.starterpack.backend.modules.users.infrastructure.AccountRepository;
 import com.starterpack.backend.modules.users.infrastructure.RoleRepository;
 import com.starterpack.backend.modules.users.infrastructure.SessionRepository;
@@ -44,6 +50,7 @@ public class UserService {
     private final SessionRepository sessionRepository;
     private final AuthSessionCachePort authSessionCache;
     private final CacheProperties cacheProperties;
+    private final AuthService authService;
 
     public UserService(
             UserRepository userRepository,
@@ -54,7 +61,8 @@ public class UserService {
             UserListCachePort userListCache,
             SessionRepository sessionRepository,
             AuthSessionCachePort authSessionCache,
-            CacheProperties cacheProperties
+            CacheProperties cacheProperties,
+            AuthService authService
     ) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
@@ -65,6 +73,7 @@ public class UserService {
         this.sessionRepository = sessionRepository;
         this.authSessionCache = authSessionCache;
         this.cacheProperties = cacheProperties;
+        this.authService = authService;
     }
 
     public User createUser(CreateUserRequest request) {
@@ -83,6 +92,7 @@ public class UserService {
         user.setRole(role);
         user.setEmailVerified(false);
         user.setPhoneVerified(false);
+        user.setStatus(UserStatus.ACTIVE);
         user = userRepository.save(user);
 
         Account account = new Account();
@@ -108,17 +118,18 @@ public class UserService {
             int size,
             String sortBy,
             Sort.Direction sortDirection,
+            String q,
             Integer roleId,
             Boolean emailVerified
     ) {
-        String listCacheKey = listCacheKey(page, size, sortBy, sortDirection, roleId, emailVerified);
+        String listCacheKey = listCacheKey(page, size, sortBy, sortDirection, q, roleId, emailVerified);
         Optional<PagedResponse<UserResponse>> cached = userListCache.getList(listCacheKey);
         if (cached.isPresent()) {
             return cached.get();
         }
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, sortBy));
-        Page<User> users = userRepository.findAll(buildUserFilter(roleId, emailVerified), pageable);
+        Page<User> users = userRepository.findAll(buildUserFilter(q, roleId, emailVerified), pageable);
 
         List<UserResponse> items = users.getContent().stream()
                 .map(UserResponse::from)
@@ -138,6 +149,65 @@ public class UserService {
         authSessionCache.evictAllUserSessions(user.getId());
         userListCache.invalidateLists();
         return user;
+    }
+
+    public User updateUser(UUID userId, UpdateUserRequest request) {
+        User user = getUser(userId);
+        if (request.name() != null) {
+            user.setName(request.name().trim());
+        }
+        if (request.phone() != null) {
+            user.setPhone(trimToNull(request.phone()));
+        }
+        if (request.image() != null) {
+            user.setImage(trimToNull(request.image()));
+        }
+        if (request.roleId() != null) {
+            Role role = resolveRole(request.roleId());
+            user.setRole(role);
+            sessionRepository.deleteByUserId(user.getId());
+            authSessionCache.evictAllUserSessions(user.getId());
+        }
+        if (request.emailVerified() != null) {
+            user.setEmailVerified(request.emailVerified());
+        }
+        if (request.phoneVerified() != null) {
+            user.setPhoneVerified(request.phoneVerified());
+        }
+        if (request.status() != null) {
+            user.setStatus(request.status());
+        }
+        userListCache.invalidateLists();
+        return user;
+    }
+
+    public User updateUserStatus(UUID userId, UserStatus status) {
+        User user = getUser(userId);
+        user.setStatus(status);
+        if (status != UserStatus.ACTIVE) {
+            sessionRepository.deleteByUserId(user.getId());
+            authSessionCache.evictAllUserSessions(user.getId());
+        }
+        userListCache.invalidateLists();
+        return user;
+    }
+
+    @Transactional(readOnly = true)
+    public UserPermissionsResponse getUserPermissions(UUID userId) {
+        User user = userRepository.findByIdWithRoleAndPermissions(userId)
+                .orElseThrow(() -> AppException.notFound("User not found"));
+        List<String> permissions = user.getRole() == null
+                ? List.of()
+                : user.getRole().getPermissions().stream()
+                .map(Permission::getName)
+                .sorted()
+                .toList();
+        return new UserPermissionsResponse(user.getId(), RoleSummary.from(user.getRole()), permissions);
+    }
+
+    public void requestPasswordResetForUser(UUID userId) {
+        User user = getUser(userId);
+        authService.requestPasswordResetByEmail(user.getEmail());
     }
 
     public void deleteUser(UUID userId) {
@@ -166,18 +236,27 @@ public class UserService {
             int size,
             String sortBy,
             Sort.Direction sortDirection,
+            String q,
             Integer roleId,
             Boolean emailVerified
     ) {
+        String qPart = q == null || q.isBlank() ? "any-q" : "q-" + q.trim().toLowerCase(Locale.ROOT);
         String rolePart = roleId == null ? "any-role" : "role-" + roleId;
         String verifiedPart = emailVerified == null ? "any-verified" : "emailVerified-" + emailVerified;
         return "users:list:" + page + ":" + size + ":" + sortBy + ":" + sortDirection.name().toLowerCase()
-                + ":" + rolePart + ":" + verifiedPart;
+                + ":" + qPart + ":" + rolePart + ":" + verifiedPart;
     }
 
-    private Specification<User> buildUserFilter(Integer roleId, Boolean emailVerified) {
+    private Specification<User> buildUserFilter(String q, Integer roleId, Boolean emailVerified) {
         return (root, query, cb) -> {
             java.util.List<jakarta.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
+            if (q != null && !q.isBlank()) {
+                String pattern = "%" + q.trim().toLowerCase(Locale.ROOT) + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("name")), pattern),
+                        cb.like(cb.lower(root.get("email")), pattern)
+                ));
+            }
             if (roleId != null) {
                 predicates.add(cb.equal(root.get("role").get("id"), roleId));
             }
@@ -186,5 +265,13 @@ public class UserService {
             }
             return cb.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
         };
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

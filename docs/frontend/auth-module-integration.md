@@ -88,6 +88,21 @@ Example approach:
 - Backend invalidates session and clears cookies.
 - Frontend should clear local user state and redirect to login.
 
+### 6.1) List Active Sessions
+- `GET /api/auth/sessions`
+- Returns all active sessions/devices for current user.
+- Use this in "Logged in devices" UI.
+
+### 6.2) Revoke One Session
+- `DELETE /api/auth/sessions/{sessionId}`
+- Revokes selected device/session.
+- If user revokes current session, backend also clears cookies and frontend should redirect to login.
+
+### 6.3) Logout All Sessions
+- `POST /api/auth/logout-all`
+- Revokes all sessions for current user and clears cookies.
+- Frontend should force logged-out state.
+
 ### 7) Change Password (Logged-in)
 - `POST /api/auth/password/change`
 - Request:
@@ -114,6 +129,11 @@ Example approach:
 - Token field behavior:
   - Dev/local: may include plain token (testing)
   - Prod: token is hidden (`null`)
+
+### 8.1) Resend Verification
+- `POST /api/auth/verify/resend`
+- Same request body as `/verify/request`.
+- Has cooldown (default 1 minute). If called too quickly, backend returns `400`.
 
 ### 9) Confirm Verification
 - `POST /api/auth/verify/confirm`
@@ -157,6 +177,32 @@ Example approach:
   2. Reset page reads `identifier` and `token` from query params.
   3. User enters new password.
   4. Frontend calls this endpoint.
+
+### 12) Re-authenticate (Sensitive Action Guard)
+- `POST /api/auth/reauth`
+- Request:
+```json
+{
+  "password": "CurrentPassword123!"
+}
+```
+- Use before sensitive actions (for example email change, account deletion, critical profile updates).
+
+### 13) Request Account Deletion Verification
+- `POST /api/auth/account/delete/request`
+- Sends deletion verification email to current user.
+- Cooldown applies (default 1 minute).
+
+### 14) Delete My Account (Verified)
+- `POST /api/auth/account/delete`
+- Request:
+```json
+{
+  "token": "<token-from-deletion-email>"
+}
+```
+- On success, backend deletes user account and clears cookies.
+- Frontend should clear app state and redirect to public/login page.
 
 ## Recommended Frontend Flow
 1. App start: call `GET /api/auth/me`.
