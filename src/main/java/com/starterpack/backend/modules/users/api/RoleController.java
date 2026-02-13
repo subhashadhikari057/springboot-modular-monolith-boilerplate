@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/roles")
+@RequestMapping("/api/admin/roles")
 @Tag(name = "Roles", description = "Role lifecycle and permission mapping")
 @Validated
 public class RoleController {
